@@ -32,15 +32,15 @@ global NICE := Map(
 "B01","01", "B02","02", "B03","03", "B04","04", "B05","05",
 "B06","06", "B07","07", "B08","08", "B09","09", "B10","10",
 "B11","11", "B12","12", "B13","13", "B14","14",
-"BESP","Pulgar", "BALT","Redondo",
-"BUP","Arriba", "BDOWN","Abajo", "BLEFT","Izq.", "BRIGHT","Der.")
+"BESP","Thumb", "BALT","Round",
+"BUP","Up", "BDOWN","Down", "BLEFT","Left", "BRIGHT","Right")
 global FACTORY := Map(
 "B01","Tab","B02","Q","B03","W","B04","E","B05","R",
-"B06","BloqMay","B07","A","B08","S","B09","D","B10","F",
+"B06","CapsLock","B07","A","B08","S","B09","D","B10","F",
 "B11","Shift","B12","Z","B13","X","B14","C",
-"BESP","Espacio","BALT","Alt","BUP","↑","BDOWN","↓","BLEFT","←","BRIGHT","→")
+"BESP","Space","BALT","Alt","BUP","↑","BDOWN","↓","BLEFT","←","BRIGHT","→")
 global TYPES := ["key","send","text","run","none"]
-global TYPELABELS := ["Tecla (se mantiene)","Combinacion / macro","Escribir texto","Abrir programa o web","Sin cambio (original)"]
+global TYPELABELS := ["Key (held down)","Combo / macro","Type text","Open program or website","No change (original)"]
 global QUICKKEYS := ["F13","F14","F15","F16","F17","F18","F19","F20","F21","F22","F23","F24",
 "Enter","Space","Esc","Tab","Backspace","Delete","Home","End","PgUp","PgDn",
 "Up","Down","Left","Right","LCtrl","LShift","LAlt",
@@ -130,16 +130,16 @@ SourceSc(id) => origin.Has(id) ? origin[id] : AhkToSc(GetKeySC(PHYS[id]))
 SourceName(id) => origin.Has(id) ? ScName(origin[id]) : FACTORY[id]
 if FileExist(A_ScriptDir "\infomalena.ico")
 try TraySetIcon(A_ScriptDir "\infomalena.ico")
-global g := Gui("-MaximizeBox", "Editor n52te")
+global g := Gui("-MaximizeBox", "n52te Editor")
 g.BackColor := COL_BG
 g.SetFont("s9", "Segoe UI")
 g.OnEvent("Close", (*) => (StopLearn(), g.Hide()))
 if FileExist(A_ScriptDir "\favicon.png")
 g.AddPicture("x18 y10 w40 h40", A_ScriptDir "\favicon.png")
 g.SetFont("s12 Bold cWhite")
-g.AddText("x66 y10 w400", "Editor de botones del n52te")
+g.AddText("x66 y10 w400", "n52te Button Editor")
 g.SetFont("s8 cSilver")
-g.AddText("x66 y34 w560", "Haz clic en un boton, elige que hace y pulsa Asignar. Se aplica al instante.")
+g.AddText("x66 y34 w560", "Click a button, choose what it does and press Assign. Changes apply instantly.")
 g.SetFont("s9 cWhite")
 AddTile(id, x, y, w, h) {
 t := g.AddText("x" Round(x) " y" Round(y) " w" w " h" h " +Center +Border", "")
@@ -153,7 +153,7 @@ AddTile(id, SX + (c[1]-ORIGINX)*SCALE - w/2, SY + (c[2]-ORIGINY)*SCALE - h/2, w,
 for id in ["B01","B02","B03","B04","B05","B06","B07","B08","B09","B10","B11","B12","B13","B14"]
 PlaceMain(id, 54, 42)
 g.SetFont("s8 cSilver")
-g.AddText("x360 y96 w160", "Pulgar y cruceta")
+g.AddText("x360 y96 w160", "Thumb buttons and D-pad")
 g.SetFont("s9 cWhite")
 AddTile("BALT",  360, 120, 120, 44)
 AddTile("BUP",   404, 178, 56, 34)
@@ -165,31 +165,31 @@ g.SetFont("s9 cWhite")
 panelX := 520
 g.AddText("x" panelX " y60 w300 h334 +Border Background" COL_PANEL)
 g.SetFont("s9 Bold cWhite")
-global txtSel := g.AddText("x" (panelX+14) " y74 w272", "Elige un boton")
+global txtSel := g.AddText("x" (panelX+14) " y74 w272", "Choose a button")
 g.SetFont("s8 cSilver")
 global txtFac := g.AddText("x" (panelX+14) " y96 w272", "")
 g.SetFont("s9 cWhite")
-global btnIdent := g.AddButton("x" (panelX+14) " y120 w134 h30", "Identificar")
+global btnIdent := g.AddButton("x" (panelX+14) " y120 w134 h30", "Identify")
 btnIdent.OnEvent("Click", StartIdentify)
-global btnLearn := g.AddButton("x" (panelX+152) " y120 w134 h30", "Aprender teclas")
+global btnLearn := g.AddButton("x" (panelX+152) " y120 w134 h30", "Learn keys")
 btnLearn.OnEvent("Click", StartWizard)
-g.AddText("x" (panelX+14) " y160 w272 cWhite", "Que hace el boton:")
+g.AddText("x" (panelX+14) " y160 w272 cWhite", "What the button does:")
 global ddlType := g.AddDropDownList("x" (panelX+14) " y180 w272", TYPELABELS)
 ddlType.OnEvent("Change", (*) => UpdateHint())
-g.AddText("x" (panelX+14) " y212 w80 cWhite", "Tecla rapida:")
+g.AddText("x" (panelX+14) " y212 w80 cWhite", "Quick key:")
 global ddlQuick := g.AddDropDownList("x" (panelX+100) " y208 w186", QUICKKEYS)
 ddlQuick.OnEvent("Change", (*) => (edtVal.Value := ddlQuick.Text))
-g.AddText("x" (panelX+14) " y240 w80 cWhite", "Valor:")
+g.AddText("x" (panelX+14) " y240 w80 cWhite", "Value:")
 global edtVal := g.AddEdit("x" (panelX+100) " y236 w186")
 g.SetFont("s8 cSilver")
 global txtHint := g.AddText("x" (panelX+14) " y268 w272 h44 +Wrap", "")
 g.SetFont("s10 Bold cWhite")
-global btnAssign := g.AddButton("x" (panelX+14) " y316 w272 h40", "Asignar a este boton")
+global btnAssign := g.AddButton("x" (panelX+14) " y316 w272 h40", "Assign to this button")
 btnAssign.OnEvent("Click", AssignCurrent)
 g.SetFont("s9 cWhite")
-global btnDef := g.AddButton("x20 y406 w150 h28", "Restaurar por defecto")
+global btnDef := g.AddButton("x20 y406 w150 h28", "Restore defaults")
 btnDef.OnEvent("Click", ResetDefaults)
-global chkStart := g.AddCheckbox("x185 y411 w320 cWhite", "Iniciar el remapeador con Windows")
+global chkStart := g.AddCheckbox("x185 y411 w320 cWhite", "Start the remapper with Windows")
 chkStart.OnEvent("Click", ToggleStartup)
 g.SetFont("s8 cSilver")
 global txtDev := g.AddText("x20 y362 w330 h40 +Wrap", "")
@@ -197,7 +197,7 @@ global txtStatus := g.AddText("x20 y444 w580 h26 +Wrap", "")
 g.SetFont("s9 cWhite")
 if FileExist(A_ScriptDir "\logo_footer.png")
 g.AddPicture("x630 y426 w200 h38", A_ScriptDir "\logo_footer.png")
-global CRIT_ID := (*) => identifyMode && WinActive("Editor n52te")
+global CRIT_ID := (*) => identifyMode && WinActive("n52te Editor")
 HotIf CRIT_ID
 for tmpId, tmpKey in PHYS
 Hotkey("*" tmpKey, IdentifyHit.Bind(tmpId), "On")
@@ -206,17 +206,17 @@ StartIdentify(*) {
 global identifyMode, learnMode
 if (learnMode = "wizard") {
 StopLearn()
-SetStatus("Aprendizaje cancelado. No se ha cambiado nada.")
+SetStatus("Learning canceled. Nothing was changed.")
 return
 }
 if !ProcessExist("n52te_interception.exe") {
 identifyMode := true
-SetStatus("MODO IDENTIFICAR: pulsa ahora un boton del n52te...")
+SetStatus("IDENTIFY MODE: press a button on the n52te now...")
 return
 }
 learnMode := "identify"
 ArmLearn()
-SetStatus("MODO IDENTIFICAR: pulsa ahora un boton del n52te...")
+SetStatus("IDENTIFY MODE: press a button on the n52te now...")
 }
 IdentifyHit(id, *) {
 global identifyMode := false
@@ -231,19 +231,19 @@ WizardNext()
 return
 }
 if !ProcessExist("n52te_interception.exe") {
-SetStatus("Para aprender las teclas el remapeador tiene que estar abierto.")
+SetStatus("The remapper must be running to learn keys.")
 return
 }
-if MsgBox("Vas a pulsar los botones del n52te uno a uno, en el orden que se indica abajo."
-. "`n`nAsi el editor aprende que tecla manda cada boton con el perfil que tenga grabado tu keypad"
-. " (rojo, verde, azul...) y reconoce tu dispositivo."
-. "`n`nSi un boton no hace nada, pulsa 'Saltar'.", "Editor n52te", "OKCancel Iconi") != "OK"
+if MsgBox("You will press the n52te's buttons one at a time, in the order shown below."
+. "`n`nThis way the editor learns which key each button sends with the profile stored on your keypad"
+. " (red, green, blue...) and recognizes your device."
+. "`n`nIf a button does nothing, press 'Skip'.", "n52te Editor", "OKCancel Iconi") != "OK"
 return
 learnMode := "wizard"
 wizIdx := 1
 wizNew := Map()
-btnIdent.Text := "Cancelar"
-btnLearn.Text := "Saltar"
+btnIdent.Text := "Cancel"
+btnLearn.Text := "Skip"
 WizardNext()
 }
 WizardNext() {
@@ -253,13 +253,13 @@ StopLearn()
 origin := wizNew
 SaveOrigin()
 RefreshAll()
-SetStatus("Listo: " wizNew.Count " botones aprendidos y aplicados. Ya puedes asignarles acciones.")
+SetStatus("Done: " wizNew.Count " buttons learned and applied. You can now assign actions to them.")
 return
 }
 id := ORDER[wizIdx]
 SelectPad(id)
 ArmLearn()
-SetStatus("APRENDER (" wizIdx "/" ORDER.Length "): pulsa el boton " NICE[id] " del n52te (o 'Saltar').")
+SetStatus("LEARN (" wizIdx "/" ORDER.Length "): press button " NICE[id] " on the n52te (or 'Skip').")
 }
 ArmLearn() {
 try FileDelete(LEARNRES)
@@ -271,8 +271,8 @@ global learnMode := ""
 SetTimer(PollLearn, 0)
 try FileDelete(LEARNREQ)
 try FileDelete(LEARNRES)
-btnIdent.Text := "Identificar"
-btnLearn.Text := "Aprender teclas"
+btnIdent.Text := "Identify"
+btnLearn.Text := "Learn keys"
 }
 PollLearn() {
 global wizIdx
@@ -291,20 +291,20 @@ return
 }
 if !IsN52te(hw) {
 if (hw = "") {
-SetStatus("No se pudo leer el id de ese teclado. Pulsa un boton del n52te.")
+SetStatus("Couldn't read that keyboard's ID. Press a button on the n52te.")
 ArmLearn()
 return
 }
 RegExMatch(hw, "i)VID_[0-9A-F]{4}&PID_[0-9A-F]{4}", &m)
-if MsgBox("Esa tecla (" ScName(sc) ") viene de un dispositivo que todavia no se reconoce como n52te:`n`n"
-. (m ? m[0] : hw) "`n`nEs tu n52te? (Si la has pulsado en tu teclado normal, responde No.)",
-"Editor n52te", "YesNo Icon?") != "Yes" {
-SetStatus("Ignorado. Pulsa el boton en el n52te.")
+if MsgBox("That key (" ScName(sc) ") comes from a device that isn't recognized as an n52te yet:`n`n"
+. (m ? m[0] : hw) "`n`nIs this your n52te? (If you pressed it on your regular keyboard, answer No.)",
+"n52te Editor", "YesNo Icon?") != "Yes" {
+SetStatus("Ignored. Press the button on the n52te.")
 ArmLearn()
 return
 }
 if (AddDeviceId(hw) = "") {
-SetStatus("No se pudo sacar el VID/PID de ese dispositivo. Abre una issue con el texto del remapeador.")
+SetStatus("Couldn't get that device's VID/PID. Please open an issue and include the text from the remapper window.")
 StopLearn()
 return
 }
@@ -317,13 +317,13 @@ if (SourceSc(id) = sc) {
 SelectPad(id)
 return
 }
-SetStatus("Esa tecla (" ScName(sc) ") no corresponde a ningun boton. Usa 'Aprender teclas' para que el editor aprenda tu keypad.")
+SetStatus("That key (" ScName(sc) ") doesn't match any button. Use 'Learn keys' so the editor learns your keypad.")
 return
 }
 for prevId, prevSc in wizNew
 if (prevSc = sc) {
 ArmLearn()
-SetStatus("Esa tecla (" ScName(sc) ") ya la manda el boton " NICE[prevId] ". Pulsa el boton " NICE[ORDER[wizIdx]] " o 'Saltar'.")
+SetStatus("That key (" ScName(sc) ") is already sent by button " NICE[prevId] ". Press button " NICE[ORDER[wizIdx]] " or 'Skip'.")
 return
 }
 wizNew[ORDER[wizIdx]] := sc
@@ -340,9 +340,9 @@ def := config[id]
 if def.type = "none"
 return "—"
 if def.type = "text"
-return "texto"
+return "text"
 if def.type = "run"
-return "abrir"
+return "open"
 if def.type = "send"
 return def.value
 return def.value
@@ -359,8 +359,8 @@ RefreshTile(id)
 SelectPad(id, *) {
 global selectedId := id
 def := config[id]
-txtSel.Value := "Boton " NICE[id]
-txtFac.Value := origin.Has(id) ? "Tu keypad envia: " SourceName(id) : "De fabrica envia: " FACTORY[id]
+txtSel.Value := "Button " NICE[id]
+txtFac.Value := origin.Has(id) ? "Your keypad sends: " SourceName(id) : "Factory default: " FACTORY[id]
 idx := 5
 for i, t in TYPES
 if (t = def.type)
@@ -370,46 +370,46 @@ edtVal.Value := def.value
 ddlQuick.Value := 0
 UpdateHint()
 RefreshAll()
-SetStatus("Configurando boton " NICE[id] ". Elige la accion y pulsa Asignar.")
+SetStatus("Configuring button " NICE[id] ". Choose an action and press Assign.")
 }
 UpdateHint() {
 hints := [
-"La tecla se mantiene mientras aprietas el boton (ideal para juegos). Usa la lista o escribe un nombre (ej: F14, Space, LButton).",
-"Envia una combinacion. Ej:  ^c = Ctrl+C   !{Tab} = Alt+Tab   {F5 2} = F5 dos veces.",
-"Escribe el texto que pongas en Valor (frases, comandos de chat...).",
-"Abre lo que pongas en Valor. Ej:  notepad.exe   |   https://google.es",
-"El boton se queda como de fabrica."
+"The key stays down while you hold the button (ideal for games). Pick from the list or type a key name (e.g. F14, Space, LButton).",
+"Sends a key combination. E.g.  ^c = Ctrl+C   !{Tab} = Alt+Tab   {F5 2} = F5 twice.",
+"Types the text in Value (phrases, chat commands...).",
+"Opens whatever is in Value. E.g.  notepad.exe   |   https://google.com",
+"The button keeps its factory behavior."
 ]
 i := ddlType.Value
 txtHint.Value := (i >= 1 && i <= 5) ? hints[i] : ""
 }
 AssignCurrent(*) {
 if selectedId = "" {
-SetStatus("Primero haz clic en un boton del dibujo (o usa Identificar).")
+SetStatus("First click a button in the drawing (or use Identify).")
 return
 }
 t := TYPES[ddlType.Value ? ddlType.Value : 5]
 v := Trim(edtVal.Value)
 if (t != "none" && v = "") {
-SetStatus("Pon un valor, o elige 'Sin cambio'.")
+SetStatus("Enter a value, or choose 'No change'.")
 return
 }
 config[selectedId] := {type:t, value:v}
 SaveConfig()
 RefreshTile(selectedId)
-SetStatus("OK: boton " NICE[selectedId] " asignado y aplicado. Para PROBARLO, haz clic fuera de esta ventana y pulsa el boton en el n52te.")
+SetStatus("OK: button " NICE[selectedId] " assigned and applied. To TEST it, click outside this window and press the button on the n52te.")
 }
 ResetDefaults(*) {
-if MsgBox("Restaurar TODOS los botones a los valores por defecto?", "Editor n52te", "YesNo Icon?") = "Yes" {
+if MsgBox("Restore ALL buttons to their defaults?", "n52te Editor", "YesNo Icon?") = "Yes" {
 global config := Defaults()
 SaveConfig()
 RefreshAll()
-SetStatus("Restaurado a valores por defecto y aplicado.")
+SetStatus("Defaults restored and applied.")
 }
 }
 SetStatus(msg) {
 on := ProcessExist("n52te_interception.exe")
-txtStatus.Value := msg "`n" (on ? "Remapeador: ACTIVO (los cambios se aplican solos)." : "AVISO: el remapeador no esta abierto. Abrelo desde el acceso directo 'Remapeador n52te'.")
+txtStatus.Value := msg "`n" (on ? "Remapper: RUNNING (changes apply automatically)." : "WARNING: the remapper isn't running. Start it from the 'n52te Remapper' shortcut.")
 RefreshDevice(on)
 }
 RefreshDevice(on) {
@@ -421,9 +421,9 @@ try txt := FileRead(KBDLIST, "UTF-8")
 catch
 return
 if RegExMatch(txt, "m)^\[n52te\].*?(VID_[0-9A-F]{4}&PID_[0-9A-F]{4})", &m)
-txtDev.Value := "n52te detectado por el remapeador (" m[1] ")."
+txtDev.Value := "n52te detected by the remapper (" m[1] ")."
 else
-txtDev.Value := "El remapeador NO reconoce tu n52te, por eso no cambia nada. Pulsa 'Aprender teclas' para que lo reconozca."
+txtDev.Value := "The remapper does NOT recognize your n52te, so nothing changes. Press 'Learn keys' so it can recognize it."
 }
 global RUNKEY := "HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
 StartupOn() {
@@ -437,20 +437,20 @@ return false
 ToggleStartup(*) {
 if chkStart.Value {
 RegWrite('"' A_ScriptDir '\n52te_interception.exe"', "REG_SZ", RUNKEY, "n52te")
-SetStatus("Arranque automatico ACTIVADO: el remapeador se iniciara solo con Windows.")
+SetStatus("Autostart ON: the remapper will start automatically with Windows.")
 } else {
 try RegDelete(RUNKEY, "n52te")
-SetStatus("Arranque automatico DESACTIVADO.")
+SetStatus("Autostart OFF.")
 }
 }
 A_TrayMenu.Delete()
-A_TrayMenu.Add("Abrir editor", (*) => g.Show())
-A_TrayMenu.Add("Salir", (*) => ExitApp())
-A_TrayMenu.Default := "Abrir editor"
-A_IconTip := "Editor n52te"
+A_TrayMenu.Add("Open editor", (*) => g.Show())
+A_TrayMenu.Add("Exit", (*) => ExitApp())
+A_TrayMenu.Default := "Open editor"
+A_IconTip := "n52te Editor"
 RefreshAll()
 chkStart.Value := StartupOn() ? 1 : 0
-SetStatus("Listo. Haz clic en un boton para configurarlo.")
+SetStatus("Ready. Click a button to configure it.")
 g.Show("w840 h478")
 SetWinIcon()
 SetWinIcon() {

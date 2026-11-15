@@ -1,5 +1,5 @@
 ﻿// Recovered by decompiling the installer from Instalar-n52te.exe v1.1.0 (ILSpy 11.2, C# 5).
-// Kept as close to the original as possible; build with build.ps1.
+// Build with build.ps1. User-facing text translated to US English.
 
 using System;
 using System.Diagnostics;
@@ -32,7 +32,7 @@ internal static class Installer
 	{
 		{ "RES_REMAPPER", "n52te_interception.exe" },
 		{ "RES_DLL", "interception.dll" },
-		{ "RES_EDITOR", "Editor n52te.exe" },
+		{ "RES_EDITOR", "n52te Editor.exe" },
 		{ "RES_DRIVER", "install-interception.exe" },
 		{ "RES_ICO", "infomalena.ico" },
 		{ "RES_FAVICON", "favicon.png" },
@@ -44,7 +44,7 @@ internal static class Installer
 	{
 		Application.EnableVisualStyles();
 		Form form = new Form();
-		form.Text = "Instalar n52te para Windows 11";
+		form.Text = "Install n52te for Windows 11";
 		form.Width = 640;
 		form.Height = 480;
 		form.StartPosition = FormStartPosition.CenterScreen;
@@ -86,7 +86,7 @@ internal static class Installer
 		{
 		}
 		Label label = new Label();
-		label.Text = "Instalador del keypad Belkin n52te";
+		label.Text = "Belkin n52te Keypad Installer";
 		label.ForeColor = Color.White;
 		label.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
 		label.Left = 18;
@@ -95,7 +95,7 @@ internal static class Installer
 		label.Height = 28;
 		Label value = label;
 		Label label2 = new Label();
-		label2.Text = "Instala el driver, el remapeador y el editor, y deja el n52te funcionando.\nNecesita permisos de administrador (UAC) y puede pedir reiniciar al final.\nby INFOMALENA Software Development";
+		label2.Text = "Installs the driver, the remapper and the editor, and leaves the n52te ready to use.\nRequires administrator rights (UAC) and may ask you to restart at the end.\nby INFOMALENA Software Development";
 		label2.ForeColor = Color.Silver;
 		label2.Font = new Font("Segoe UI", 8.5f);
 		label2.Left = 20;
@@ -117,7 +117,7 @@ internal static class Installer
 		textBox.BorderStyle = BorderStyle.FixedSingle;
 		log = textBox;
 		Button button = new Button();
-		button.Text = "Instalar";
+		button.Text = "Install";
 		button.Left = 20;
 		button.Top = 384;
 		button.Width = 160;
@@ -128,7 +128,7 @@ internal static class Installer
 		button.FlatStyle = FlatStyle.Flat;
 		btnInstall = button;
 		Button button2 = new Button();
-		button2.Text = "Reiniciar ahora";
+		button2.Text = "Restart now";
 		button2.Left = 330;
 		button2.Top = 386;
 		button2.Width = 140;
@@ -140,7 +140,7 @@ internal static class Installer
 		button2.FlatStyle = FlatStyle.Flat;
 		btnReboot = button2;
 		Button button3 = new Button();
-		button3.Text = "Cerrar";
+		button3.Text = "Close";
 		button3.Left = 480;
 		button3.Top = 386;
 		button3.Width = 120;
@@ -188,7 +188,7 @@ internal static class Installer
 		form2.Controls.Add(btnInstall);
 		form2.Controls.Add(btnReboot);
 		form2.Controls.Add(btnClose);
-		Log("Listo para instalar. Pulsa 'Instalar'.");
+		Log("Ready to install. Click 'Install'.");
 		Application.Run(form2);
 	}
 
@@ -227,10 +227,10 @@ internal static class Installer
 	{
 		try
 		{
-			Log("== 1/6 Preparando carpeta de instalacion ==");
+			Log("== 1/6 Preparing the install folder ==");
 			Directory.CreateDirectory("C:\\Program Files\\n52te");
 			Log("   C:\\Program Files\\n52te");
-			Log("== 2/6 Extrayendo archivos ==");
+			Log("== 2/6 Extracting files ==");
 			for (int i = 0; i < PAYLOAD.GetLength(0); i++)
 			{
 				string outPath = Path.Combine("C:\\Program Files\\n52te", PAYLOAD[i, 1]);
@@ -238,36 +238,40 @@ internal static class Installer
 				Log("   " + PAYLOAD[i, 1]);
 			}
 			CleanStale();
-			Log("== 3/6 Limpiando restos del driver antiguo de Belkin ==");
+			Log("== 3/6 Removing old Belkin driver leftovers ==");
 			CleanBelkin();
-			Log("== 4/6 Driver Interception ==");
+			Log("== 4/6 Interception driver ==");
 			string exe = Path.Combine("C:\\Program Files\\n52te", "install-interception.exe");
 			if (DriverInstalled() && DriverRunningOnce())
 			{
-				Log("   ya esta instalado y activo: no se reinstala (sin reinicio).");
+				Log("   already installed and running: not reinstalling (no restart needed).");
 			}
 			else
 			{
 				int num = Run(exe, "/install");
-				Log("   install-interception /install -> codigo " + num);
+				Log("   install-interception /install -> exit code " + num);
 			}
-			Log("== 5/6 Creando configuracion y accesos directos ==");
+			Log("== 5/6 Creating configuration and shortcuts ==");
 			CreateDefaultConfig();
-			string text = Path.Combine("C:\\Program Files\\n52te", "Editor n52te.exe");
+			string text = Path.Combine("C:\\Program Files\\n52te", "n52te Editor.exe");
 			string icon = Path.Combine("C:\\Program Files\\n52te", "infomalena.ico");
 			string text2 = Path.Combine("C:\\Program Files\\n52te", "n52te_interception.exe");
 			string text3 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "n52te");
 			Directory.CreateDirectory(text3);
 			string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
-			MakeShortcut(Path.Combine(text3, "Editor n52te.lnk"), text, "", "C:\\Program Files\\n52te", text, "Editor de botones del n52te");
-			MakeShortcut(Path.Combine(folderPath, "Editor n52te.lnk"), text, "", "C:\\Program Files\\n52te", text, "Editor de botones del n52te");
-			MakeShortcut(Path.Combine(text3, "Remapeador n52te.lnk"), text2, "", "C:\\Program Files\\n52te", icon, "Remapeador del n52te (segundo plano)");
-			Log("   accesos directos en Escritorio y menu Inicio");
-			Log("== 6/6 Comprobando el driver ==");
+			// Remove the Spanish-named shortcuts left by v1.1.0 and earlier.
+			DeleteOldShortcut(Path.Combine(text3, "Editor n52te.lnk"));
+			DeleteOldShortcut(Path.Combine(text3, "Remapeador n52te.lnk"));
+			DeleteOldShortcut(Path.Combine(folderPath, "Editor n52te.lnk"));
+			MakeShortcut(Path.Combine(text3, "n52te Editor.lnk"), text, "", "C:\\Program Files\\n52te", text, "n52te button editor");
+			MakeShortcut(Path.Combine(folderPath, "n52te Editor.lnk"), text, "", "C:\\Program Files\\n52te", text, "n52te button editor");
+			MakeShortcut(Path.Combine(text3, "n52te Remapper.lnk"), text2, "", "C:\\Program Files\\n52te", icon, "n52te remapper (runs in the background)");
+			Log("   shortcuts created on the Desktop and in the Start menu");
+			Log("== 6/6 Checking the driver ==");
 			if (DriverRunning())
 			{
-				Log("   El driver ya esta ACTIVO.");
-				Log("   Arrancando el remapeador...");
+				Log("   The driver is already RUNNING.");
+				Log("   Starting the remapper...");
 				try
 				{
 					ProcessStartInfo processStartInfo = new ProcessStartInfo(text2);
@@ -278,33 +282,33 @@ internal static class Installer
 				}
 				catch (Exception ex)
 				{
-					Log("   (no se pudo arrancar: " + ex.Message + ")");
+					Log("   (couldn't start it: " + ex.Message + ")");
 				}
 				Log("");
 				Log("==========================================================");
-				Log(" INSTALACION COMPLETADA. El n52te ya esta funcionando.");
-				Log(" Abre 'Editor n52te' (Escritorio) para configurar los botones.");
-				Log(" En el editor marca 'Iniciar con Windows' si lo quieres siempre.");
+				Log(" INSTALLATION COMPLETE. The n52te is ready to use.");
+				Log(" Open 'n52te Editor' (on the Desktop) to configure the buttons.");
+				Log(" To keep it always on, check 'Start the remapper with Windows'.");
 				Log("==========================================================");
 			}
 			else
 			{
 				needReboot = true;
 				SetReboot(true);
-				Log("   El driver necesita un REINICIO para activarse.");
+				Log("   The driver needs a RESTART to activate.");
 				Log("");
 				Log("==========================================================");
-				Log(" CASI LISTO: reinicia el equipo para activar el driver.");
-				Log(" Pulsa 'Reiniciar ahora' o reinicia cuando quieras.");
-				Log(" Tras reiniciar, abre 'Editor n52te' y marca");
-				Log(" 'Iniciar con Windows' para que el n52te funcione siempre.");
+				Log(" ALMOST DONE: restart the computer to activate the driver.");
+				Log(" Click 'Restart now', or restart whenever you like.");
+				Log(" After restarting, open 'n52te Editor' and check");
+				Log(" 'Start the remapper with Windows' so the n52te always works.");
 				Log("==========================================================");
 			}
 		}
 		catch (Exception ex)
 		{
 			Log("[ERROR] " + ex.Message);
-			Log("Si el problema persiste, dime que pone aqui.");
+			Log("If the problem persists, open an issue and include the text shown here.");
 		}
 	}
 
@@ -315,7 +319,7 @@ internal static class Installer
 		{
 			if (stream == null)
 			{
-				throw new Exception("recurso no encontrado: " + res);
+				throw new Exception("resource not found: " + res);
 			}
 			int num = 0;
 			while (true)
@@ -378,7 +382,7 @@ internal static class Installer
 			}
 			if ((text4.IndexOf("jmtflter", StringComparison.OrdinalIgnoreCase) >= 0 || text4.IndexOf("jmtfltr", StringComparison.OrdinalIgnoreCase) >= 0 || (text4.IndexOf("usbicp", StringComparison.OrdinalIgnoreCase) >= 0 && text2 != null) || text4.IndexOf("vhidmini", StringComparison.OrdinalIgnoreCase) >= 0) && text2 != null && text2.StartsWith("oem", StringComparison.OrdinalIgnoreCase))
 			{
-				Log("   eliminando " + text2 + " ...");
+				Log("   removing " + text2 + " ...");
 				Run("pnputil", "/delete-driver " + text2 + " /uninstall /force");
 				num++;
 				text2 = null;
@@ -386,7 +390,7 @@ internal static class Installer
 		}
 		if (num == 0)
 		{
-			Log("   (no habia restos del driver Belkin)");
+			Log("   (no Belkin driver leftovers found)");
 		}
 	}
 
@@ -397,7 +401,7 @@ internal static class Installer
 		string text2 = Path.Combine(text, "n52te_config.ini");
 		if (File.Exists(text2))
 		{
-			Log("   configuracion existente conservada (" + text2 + ")");
+			Log("   kept the existing configuration (" + text2 + ")");
 			return;
 		}
 		string[] contents = new string[21]
@@ -407,12 +411,14 @@ internal static class Installer
 			"BUP=none|"
 		};
 		File.WriteAllLines(text2, contents);
-		Log("   configuracion por defecto creada");
+		Log("   created the default configuration");
 	}
 
 	private static void CleanStale()
 	{
-		string[] array = new string[4] { "AutoHotkey64.exe", "Editor n52te.ahk", "n52.ico", "n52te_config.ini" };
+		// "Editor n52te.exe" is the editor's name in v1.1.0 and earlier (Spanish builds).
+		TryStop("Editor n52te");
+		string[] array = new string[5] { "AutoHotkey64.exe", "Editor n52te.ahk", "Editor n52te.exe", "n52.ico", "n52te_config.ini" };
 		string[] array2 = array;
 		foreach (string text in array2)
 		{
@@ -422,12 +428,27 @@ internal static class Installer
 				if (File.Exists(path))
 				{
 					File.Delete(path);
-					Log("   limpiado archivo antiguo: " + text);
+					Log("   removed old file: " + text);
 				}
 			}
 			catch
 			{
 			}
+		}
+	}
+
+	private static void DeleteOldShortcut(string lnk)
+	{
+		try
+		{
+			if (File.Exists(lnk))
+			{
+				File.Delete(lnk);
+				Log("   removed old shortcut: " + Path.GetFileName(lnk));
+			}
+		}
+		catch
+		{
 		}
 	}
 
@@ -497,7 +518,7 @@ internal static class Installer
 		}
 		catch (Exception ex)
 		{
-			Log("   (no se pudo crear acceso directo: " + ex.Message + ")");
+			Log("   (couldn't create shortcut: " + ex.Message + ")");
 		}
 	}
 

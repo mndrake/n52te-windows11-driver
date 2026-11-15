@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-  Builds Instalar-n52te.exe from the sources in src\.
+  Builds Install-n52te.exe from the sources in src\.
 
 .DESCRIPTION
-  1. Compiles src\editor\Editor n52te.ahk with Ahk2Exe (AutoHotkey v2 base).
+  1. Compiles src\editor\n52te Editor.ahk with Ahk2Exe (AutoHotkey v2 base).
   2. Compiles src\remapper\Program.cs (n52te_interception.exe) with the
      .NET Framework 4.x C# compiler that ships with Windows.
   3. Compiles src\installer\Installer.cs, embedding the two programs above
@@ -20,7 +20,7 @@
 param(
     [string]$AhkDir,
     [string]$OutDir,
-    [string]$InstallerName = 'Instalar-n52te.exe'
+    [string]$InstallerName = 'Install-n52te.exe'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,11 +47,11 @@ function Invoke-Csc([string[]]$CscArgs) {
 }
 
 # 1. Editor (AutoHotkey v2)
-Write-Host '== Editor n52te.exe'
-$editorExe = Join-Path $obj 'Editor n52te.exe'
+Write-Host '== n52te Editor.exe'
+$editorExe = Join-Path $obj 'n52te Editor.exe'
 Remove-Item $editorExe -ErrorAction SilentlyContinue
 $ahkArgs = @(
-    '/in', "`"$(Join-Path $src 'editor\Editor n52te.ahk')`"",
+    '/in', "`"$(Join-Path $src 'editor\n52te Editor.ahk')`"",
     '/out', "`"$editorExe`"",
     '/base', "`"$ahkBase`"",
     '/icon', "`"$(Join-Path $res 'infomalena.ico')`"",

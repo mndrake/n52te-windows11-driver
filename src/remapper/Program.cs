@@ -1,5 +1,7 @@
 ﻿// Recovered by decompiling n52te_interception.exe from Instalar-n52te.exe v1.1.0 (ILSpy 11.2, C# 5).
-// Kept as close to the original as possible; build with build.ps1.
+// Build with build.ps1. User-facing text translated to US English; on-disk names
+// (aprender.req/.res, teclados.txt, INI sections Dispositivo/Origen/Botones)
+// are unchanged so existing configs and the editor keep working.
 
 using System;
 using System.Collections.Generic;
@@ -272,7 +274,7 @@ internal static class Program
 	{
 		Console.OutputEncoding = Encoding.UTF8;
 		Console.WriteLine("==========================================================");
-		Console.WriteLine(" REMAPEADOR n52te (Interception) - separacion por dispositivo");
+		Console.WriteLine(" n52te REMAPPER (Interception) - per-device separation");
 		Console.WriteLine("==========================================================");
 		cfgDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "n52te");
 		try
@@ -308,7 +310,7 @@ internal static class Program
 		ctx = interception_create_context();
 		if (ctx == IntPtr.Zero)
 		{
-			Console.WriteLine("[ERROR] no se pudo crear el contexto. ¿Esta instalado el driver y reiniciaste?");
+			Console.WriteLine("[ERROR] Couldn't create the Interception context. Is the driver installed, and did you restart?");
 			Pause();
 			return;
 		}
@@ -323,10 +325,10 @@ internal static class Program
 		Thread thread = new Thread(ConfigWatcher);
 		thread.IsBackground = true;
 		thread.Start();
-		Console.WriteLine("[OK] remapeador activo. Cierra esta ventana (o Ctrl+C) para parar y liberar el teclado.");
+		Console.WriteLine("[OK] Remapper running. Close this window (or press Ctrl+C) to stop and release the keyboard.");
 		Loop();
 		interception_destroy_context(ctx);
-		Console.WriteLine("Detenido. Teclado liberado.");
+		Console.WriteLine("Stopped. Keyboard released.");
 	}
 
 	private static void Loop()
@@ -577,7 +579,7 @@ internal static class Program
 		fgTick = elapsedMilliseconds;
 		StringBuilder stringBuilder = new StringBuilder(64);
 		GetWindowText(GetForegroundWindow(), stringBuilder, 64);
-		fgVal = stringBuilder.ToString() == "Editor n52te";
+		fgVal = stringBuilder.ToString() == "n52te Editor";
 		return fgVal;
 	}
 
@@ -633,15 +635,15 @@ internal static class Program
 				{
 					flag = true;
 				}
-				stringBuilder.AppendLine((flag2 ? "[n52te] " : "[otro ] ") + "dev" + i + "  " + text);
+				stringBuilder.AppendLine((flag2 ? "[n52te] " : "[other] ") + "dev" + i + "  " + text);
 			}
 		}
 		if (print)
 		{
-			Console.WriteLine("Teclados (id Interception 1..10):");
-			Console.Write((stringBuilder.Length > 0) ? stringBuilder.ToString() : "  (ninguno)\n");
-			Console.WriteLine("Ids del n52te: " + string.Join(", ", deviceIds));
-			Console.WriteLine(flag ? "[OK] n52te localizado. Solo SUS teclas se remapean; el resto de teclados quedan intactos." : "[AVISO] no veo el n52te ahora mismo. Si esta conectado, usa 'Aprender teclas' en el editor.");
+			Console.WriteLine("Keyboards (Interception id 1..10):");
+			Console.Write((stringBuilder.Length > 0) ? stringBuilder.ToString() : "  (none)\n");
+			Console.WriteLine("n52te ids: " + string.Join(", ", deviceIds));
+			Console.WriteLine(flag ? "[OK] n52te found. Only ITS keys are remapped; all other keyboards are left untouched." : "[WARNING] Can't see the n52te right now. If it's connected, use 'Learn keys' in the editor.");
 		}
 		try
 		{
@@ -667,9 +669,9 @@ internal static class Program
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine("[ERR aprender] " + ex.Message);
+			Console.WriteLine("[ERR learn] " + ex.Message);
 		}
-		Console.WriteLine("[APRENDER] scancode " + sc.ToString("X2") + " de " + ((hw == "") ? "(sin id)" : hw));
+		Console.WriteLine("[LEARN] scancode " + sc.ToString("X2") + " from " + ((hw == "") ? "(no id)" : hw));
 	}
 
 	private static void ConfigWatcher()
@@ -786,7 +788,7 @@ internal static class Program
 			deviceIds = list.ToArray();
 		}
 		n52teCache = new Dictionary<int, bool>();
-		Console.WriteLine("[CONFIG] " + dictionary.Count + " botones remapeados (" + dictionary2.Count + " con tecla aprendida) " + (first ? "" : "(recargado)"));
+		Console.WriteLine("[CONFIG] " + dictionary.Count + " buttons remapped (" + dictionary2.Count + " with a learned key) " + (first ? "" : "(reloaded)"));
 		if (!first && ctx != IntPtr.Zero)
 		{
 			ListKeyboards(false);
@@ -832,7 +834,7 @@ internal static class Program
 				m.TargetVk = VkKeyScan(m.Value[0]) & 0xFF;
 				return true;
 			}
-			Console.WriteLine("[ERR config] tecla destino desconocida: " + m.Value);
+			Console.WriteLine("[ERR config] unknown target key: " + m.Value);
 			return false;
 		}
 		}
@@ -840,7 +842,7 @@ internal static class Program
 
 	private static void Pause()
 	{
-		Console.WriteLine("Pulsa ENTER para cerrar.");
+		Console.WriteLine("Press ENTER to close.");
 		Console.ReadLine();
 	}
 }
