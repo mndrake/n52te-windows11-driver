@@ -189,7 +189,42 @@ Keymap order 0/1/2 = Blue/Green/Red follows the editor's menus (*unverified on h
 So the new stack only rewrites **keystrokes coming out of the keyboard interface**. Anything the
 firmware does itself, or sends on the mouse interface, or sends as `0xC5`–`0xDF`, is out of its reach.
 
-### Note on "Left button"
+### D-pad left
+
+D-pad left is firmware input **23**. In the factory profile it is a plain Left Arrow (code `0x77`).
+The two diagonals beside it are separate inputs, 26 (down+left) and 27 (up+left). Each is a
+one-shot firmware macro (`+Down +Left -Down -Left`, `+Up +Left -Up -Left`) that releases both
+keys immediately, even while you keep holding.
+
+Nothing in this project treats Left differently from Up/Down/Right. The remapper turns the
+Interception stroke `E0 4B` into `0xE04B`, and `MapVirtualKey(0xE04B, MAPVK_VSC_TO_VK_EX)` gives
+`VK_LEFT` (37), which `SRC` maps to `BLEFT`. That is exactly the path the other three directions
+take. A learned scancode is stored and looked up as `E04B` the same way. So if only Left is dead,
+the cause is below the remapper:
+
+1. **Onboard profile.** If input 23 was given a PC-side action (or "Disable Button") with the old
+   Belkin editor, the keypad now sends keyboard usage `0xC4 + 23 = 0xDB`, or nothing at all.
+   Windows' `kbdhid` has no translation for `0xDB` and drops it *before* Interception, which
+   sits on `kbdclass`. So the remapper, "Identify" and "Learn keys" never see the press, and
+   no software above `kbdhid` can recover it.
+2. **Diagonal zone.** If your thumb rolls into the down-left/up-left zone, you get inputs 26/27
+   instead. Their macros tap Down/Up + Left and release at once, so a held Left "stops working"
+   in games.
+3. **Hardware.** A worn contact on that side of the 8-way pad.
+
+How to tell them apart: start the remapper, open the editor, click **Identificar**, and press
+D-pad left. The remapper console logs `[APRENDER] scancode …`.
+* `E04B` and the *Izq.* tile is selected: the input works, so look at your mapping/game.
+* `E050` (Down) or `E048` (Up): you're hitting a diagonal.
+* Nothing logged at all: case 1 or 3. To check for case 1, use Linux (`usbhid-dump` or
+  `evtest`, or a live USB stick): a press that shows usage `0xDB` in the raw report means the
+  onboard profile is the culprit. Nothing in the raw report either means hardware.
+
+Fix for case 1: reset input 23 to its default ("Reset Key to Default") in the original Belkin
+software, e.g. in a Windows XP/7 VM with USB passthrough, then "Load to Synapse". Do the same for
+26/27 if you want held diagonals.
+
+### Note on "Left button" as a mouse click
 
 If "left button" means assigning **LButton** to a key in this project's editor: that path
 (`Execute → SendMouse(MOUSEEVENTF_LEFTDOWN/UP)`) looks correct in the decompiled code. Two things
