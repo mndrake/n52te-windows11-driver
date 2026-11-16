@@ -250,6 +250,7 @@ internal static class Installer
 			CleanStale();
 			Log("== 3/6 Removing old Belkin driver leftovers ==");
 			CleanBelkin();
+			CleanBelkinFilter();
 			Log("== 4/6 Interception driver ==");
 			string exe = Path.Combine("C:\\Program Files\\n52te", "install-interception.exe");
 			if (DriverInstalled() && DriverRunningOnce())
@@ -437,6 +438,87 @@ internal static class Installer
 		if (num == 0)
 		{
 			Log("   (no Belkin driver leftovers found)");
+		}
+	}
+
+	[System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+	private static extern bool MoveFileEx(string existing, string newName, int flags);
+
+	private const int MOVEFILE_DELAY_UNTIL_REBOOT = 4;
+
+	// Deleting the Belkin driver packages (above) leaves Belkin's USB filter behind: the
+	// "jmtfltr" service, JmtFltr.sys, and LowerFilters entries on the n52te's device nodes.
+	// On PCs where Memory Integrity is off the 2008 filter still loads, and a stale filter
+	// entry can keep the keypad's mouse interface (the wheel) from starting.
+	// See docs/original-driver-analysis.md.
+	private static void CleanBelkinFilter()
+	{
+		int removed = 0;
+		foreach (string iface in new string[2] { "VID_050D&PID_0200&MI_00", "VID_050D&PID_0200&MI_01" })
+		{
+			try
+			{
+				using (RegistryKey parent = Registry.LocalMachine.OpenSubKey("SYSTEM\\CurrentControlSet\\Enum\\USB\\" + iface))
+				{
+					if (parent == null)
+					{
+						continue;
+					}
+					foreach (string instance in parent.GetSubKeyNames())
+					{
+						using (RegistryKey node = parent.OpenSubKey(instance))
+						{
+							string[] filters = (node == null) ? null : (node.GetValue("LowerFilters") as string[]);
+							if (filters == null || Array.FindIndex(filters, (string f) => string.Equals(f, "JmtFltr", StringComparison.OrdinalIgnoreCase)) < 0)
+							{
+								continue;
+							}
+						}
+						// Removing the node drops its filter entries; Windows sets it up again
+						// with its standard driver on the next scan or replug.
+						string id = "USB\\" + iface + "\\" + instance;
+						int code = Run("pnputil", "/remove-device \"" + id + "\"");
+						Log("   removed device entry with the old Belkin filter: " + id + " (code " + code + ")");
+						removed++;
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Log("   (couldn't check " + iface + ": " + ex.Message + ")");
+			}
+		}
+		if (removed > 0)
+		{
+			Run("pnputil", "/scan-devices");
+		}
+		using (RegistryKey svc = Registry.LocalMachine.OpenSubKey("SYSTEM\\CurrentControlSet\\Services\\jmtfltr"))
+		{
+			if (svc == null)
+			{
+				if (removed == 0)
+				{
+					Log("   (no Belkin filter leftovers found)");
+				}
+				return;
+			}
+		}
+		int sc = Run("sc", "delete jmtfltr");
+		Log("   removed the old Belkin filter service jmtfltr (sc delete -> code " + sc + ")");
+		string sys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers\\JmtFltr.sys");
+		if (File.Exists(sys))
+		{
+			try
+			{
+				File.Delete(sys);
+				Log("   deleted " + sys);
+			}
+			catch
+			{
+				// Still loaded: delete it during the next restart.
+				bool ok = MoveFileEx(sys, null, MOVEFILE_DELAY_UNTIL_REBOOT);
+				Log(ok ? "   " + sys + " is in use; it will be deleted at the next restart" : "   (couldn't delete " + sys + ")");
+			}
 		}
 	}
 

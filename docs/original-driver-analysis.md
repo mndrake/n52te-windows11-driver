@@ -27,7 +27,7 @@ LED colour) are **executed by the keypad's firmware**, using the profile stored 
 |---|---|
 | Scroll wheel / wheel click | They are inputs 16–18 of the firmware and come out of the **second USB interface (MI_01), a HID mouse**. This project's remapper only opens **keyboards** in Interception (`interception_set_filter(ctx, interception_is_keyboard, …)`), and the editor/INI only know 20 keyboard inputs. The wheel is never seen, so it can't be remapped. |
 | Mouse buttons ("Left button") | In the original software "Left/Right/Middle Mouse Button", "Scroll up/down" and mouse-axis moves are **firmware key codes `0xD0`–`0xD8`** stored in the onboard profile, and the keypad sends them as real mouse reports on MI_01. Nothing in the new stack can write the onboard profile. It can only fake a click with `SendInput` from a *keyboard* event (see note below). |
-| Keymap LEDs | LED colour = the firmware's **active keymap**. It changes only when (a) an input whose onboard code is `0xD9`–`0xDF` (Cycle / Blue / Green / Red, toggle or momentary) is pressed, or (b) the host sends HID class request SET_REPORT `wValue=4` with the keymap number. The factory profile has **no keymap key**, and the new stack has **no channel to the device**, so the LED stays on the default keymap (Blue). |
+| Keymap LEDs | LED colour = the firmware's **active keymap**. It changes only when (a) an input whose onboard code is `0xD9`–`0xDF` (Cycle / Blue / Green / Red, toggle or momentary) is pressed, or (b) the host sends HID class request SET_REPORT `wValue=4` with the keymap number. The factory profile has **no keymap key**, and the new stack has **no channel to the device**, so the LED stays on the profile's start keymap: Blue on a factory keypad, whatever the old software stored otherwise (a test unit stays **Red**, even after unplugging it). |
 
 Also: if an old onboard profile (programmed years ago with the Belkin editor) assigns an input
 to a **PC-side action** (DirectInput joystick button/axis, Load Profile, Launch App, minimise /
@@ -180,7 +180,9 @@ action, type in the first macro byte"). Then there are the special codes:
 
 Keymap order 0/1/2 = Blue/Green/Red follows the editor's menus (*unverified on hardware*).
 
-## 5. What this project does today (decompiled from `Instalar-n52te.exe`)
+## 5. What this project did in v1.1.0 (decompiled from `Instalar-n52te.exe`)
+
+The source is now in `src/` and has moved on; see "Changes since v1.1.0" below.
 
 * **Remapper** `n52te_interception.exe` (.NET): `interception_set_filter(ctx, interception_is_keyboard, 0xFFFF)`.
   Mice are never filtered. Keystrokes whose hardware ID contains `VID_050D` are matched against 20
@@ -195,6 +197,20 @@ Keymap order 0/1/2 = Blue/Green/Red follows the editor's menus (*unverified on h
 
 So the new stack only rewrites **keystrokes coming out of the keyboard interface**. Anything the
 firmware does itself, or sends on the mouse interface, or sends as `0xC5`–`0xDF`, is out of its reach.
+
+### Changes since v1.1.0
+
+* The UI is in English: the editor is `n52te Editor` (window title and shortcut), Identify is
+  **Identify**, the remapper logs `[LEARN]`, and the D-pad tiles are *Left/Right/Up/Down*.
+* The remapper also filters the n52te's **mouse interface** (only devices whose hardware ID matches
+  the n52te), limited to the wheel and middle-button states, so the wheel click (input 17) and
+  wheel scroll (inputs 16/18) can be remapped. Normal mouse movement is never routed through it.
+* The editor ships as `AutoHotkey64.exe` + `n52te Editor.ahk` (a compiled build was flagged by
+  Microsoft Defender's ML heuristics).
+* The remapper has its own Blue/Green/Red keymaps in software. They are **not** the firmware's
+  keymaps: the keypad's LED keeps showing the keymap stored in its onboard profile.
+* The installer grants users write access to `C:\ProgramData\n52te` and starts the remapper as the
+  normal user, so (as §"Note on Left button" explains) remapped input can't reach elevated apps.
 
 ### D-pad left
 
@@ -219,9 +235,10 @@ the cause is below the remapper:
    in games.
 3. **Hardware.** A worn contact on that side of the 8-way pad.
 
-How to tell them apart: start the remapper, open the editor, click **Identificar**, and press
-D-pad left. The remapper console logs `[APRENDER] scancode …`.
-* `E04B` and the *Izq.* tile is selected: the input works, so look at your mapping/game.
+How to tell them apart: start the remapper, open the editor, click **Identify**, and press
+D-pad left. The remapper console logs `[LEARN] scancode …` (start it with `/verbose` to log every
+n52te event).
+* `E04B` and the *Left* tile is selected: the input works, so look at your mapping/game.
 * `E050` (Down) or `E048` (Up): you're hitting a diagonal.
 * Nothing logged at all: case 1 or 3. To check for case 1, use Linux (`usbhid-dump` or
   `evtest`, or a live USB stick): a press that shows usage `0xDB` in the raw report means the
@@ -235,13 +252,36 @@ software, e.g. in a Windows XP/7 VM with USB passthrough, then "Load to Synapse"
 
 If "left button" means assigning **LButton** to a key in this project's editor: that path
 (`Execute → SendMouse(MOUSEEVENTF_LEFTDOWN/UP)`) looks correct in the decompiled code. Two things
-make it silently fail. (1) While the window titled *"Editor n52te"* is in the foreground, the
-remapper deliberately passes keys through raw. (2) Windows blocks `SendInput` from a
-non-elevated remapper into an **elevated** (run-as-admin) game/app (UIPI). Run the remapper
-elevated in that case.
+make it silently fail. (1) While the editor window (titled *"n52te Editor"*; *"Editor n52te"* in
+v1.1.0) is in the foreground, the remapper deliberately passes keys through raw. (2) Windows
+blocks `SendInput` from a non-elevated remapper into an **elevated** (run-as-admin) game/app
+(UIPI). The installer now starts the remapper as the normal user on purpose: users can edit its
+config, and `run` actions must not execute elevated. Running it elevated for such games is only
+safe if the config folder is made admin-writable again.
 If it means a physical input that types nothing at all, check whether the keypad's onboard
 profile assigns it a PC-side action (see TL;DR). The decoder in §4 shows this if you export the
 profile from the old editor.
+
+## Observations on a real keypad (Windows 11, November 2026)
+
+Measured on one n52te (`VID_050D&PID_0200`, `REV_2100`) that had been programmed with the old
+Belkin software years ago. Memory Integrity was **off** on this PC.
+
+| Test | Result |
+|---|---|
+| Keys 01–14, round button, thumb pad, D-pad up/right/down | Factory scancodes on MI_00 (`0F 10 11 12 13 3A 1E 1F 20 21 2A 2C 2D 2E`, `38`, `39`, `E048 E04D E050`). |
+| D-pad **left** | **Nothing**, neither in Interception (keyboard + mouse, Belkin devices only) nor in Raw Input (keyboard, mouse, consumer and system collections). The up-left diagonal sent only `E048`. |
+| Wheel **up/down** | **Nothing**, in either capture. |
+| Wheel **click** | Middle button down/up on MI_01 (`state 0x010/0x020`), with some switch bounce. |
+| LED | **Red**. It stays red after unplugging and replugging. Neither D-pad left nor the wheel changes it. |
+| Leftovers | `JmtFltr` service still **running** and `\\.\JmtFilter` present (the 2008 driver loads when Memory Integrity is off), although no n52te device node lists it as a filter any more. |
+
+This matches the onboard-profile explanation (case 1 under "D-pad left"): the stored profile
+starts in the Red keymap and gives inputs 16, 18 and 23 a PC-side action or nothing, so the keypad
+sends `0xC4 + n` (dropped by `kbdhid`) or no report at all. A raw USB capture (`usbhid-dump` on
+Linux, or USBPcap) would confirm it. Most of the captures above were taken while the old filter
+could still have been attached to the keypad's earlier device node, so repeating the D-pad left and
+wheel tests on the current, filter-free node is worthwhile.
 
 ## 6. Ways to fix it
 

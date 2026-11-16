@@ -107,11 +107,12 @@ internal static class Program
 
 	private static Dictionary<int, string> idByVk = new Dictionary<int, string>();
 
-	// One mapping table per keymap, like the original Belkin software:
-	// 0 = Blue ([Botones], the default), 1 = Red ([Botones.Red]), 2 = Green ([Botones.Green]).
-	private static readonly string[] LAYER_SECTION = new string[3] { "Botones", "Botones.Red", "Botones.Green" };
+	// One mapping table per keymap, in the original Belkin order (keymap 0/1/2, cycle order):
+	// 0 = Blue ([Botones], the default), 1 = Green ([Botones.Green]), 2 = Red ([Botones.Red]).
+	// These are software keymaps: the keypad's LED shows the keymap of its onboard profile.
+	private static readonly string[] LAYER_SECTION = new string[3] { "Botones", "Botones.Green", "Botones.Red" };
 
-	private static readonly string[] LAYER_NAME = new string[3] { "Blue", "Red", "Green" };
+	private static readonly string[] LAYER_NAME = new string[3] { "Blue", "Green", "Red" };
 
 	private static Dictionary<string, Mapping>[] layers = new Dictionary<string, Mapping>[3]
 	{
@@ -137,12 +138,18 @@ internal static class Program
 
 	private static volatile bool learnSwallowMouse = false;
 
-	// Learn/Identify code the editor recognizes as the wheel click (not a real scancode).
+	// Learn/Identify codes the editor recognizes for the wheel (not real scancodes).
 	private const uint WHEEL_CLICK_CODE = 0x1004u;
+
+	private const uint WHEEL_UP_CODE = 0x1005u;
+
+	private const uint WHEEL_DOWN_CODE = 0x1006u;
 
 	private const ushort MOUSE_MIDDLE_DOWN = 0x10;
 
 	private const ushort MOUSE_MIDDLE_UP = 0x20;
+
+	private const ushort MOUSE_WHEEL = 0x400;
 
 	private static Dictionary<int, bool> n52teCache = new Dictionary<int, bool>();
 
@@ -266,9 +273,17 @@ internal static class Program
 		{ "BDOWN", 40 },
 		{ "BLEFT", 37 },
 		{ "BRIGHT", 39 },
-		// Scroll-wheel click: arrives from the n52te's mouse interface as a middle click.
-		{ "BWHEEL", 4 }
+		// Scroll wheel (firmware inputs 16-18): arrives from the n52te's mouse interface
+		// (MI_01) as a middle click and as wheel notches. Values are placeholders, not VKs.
+		{ "BWHEEL", 4 },
+		{ "BWUP", 0x10001 },
+		{ "BWDOWN", 0x10002 }
 	};
+
+	private static bool IsMouseSource(string id)
+	{
+		return id == "BWHEEL" || id == "BWUP" || id == "BWDOWN";
+	}
 
 	[DllImport("interception.dll")]
 	private static extern IntPtr interception_create_context();
@@ -396,6 +411,11 @@ internal static class Program
 			ushort num3 = (ushort)(array[2] | (array[3] << 8));
 			bool flag = (num3 & 1) != 0;
 			uint num4 = (uint)(((num3 & 2) != 0) ? (num2 | 0xE000) : num2);
+			if (verbose && IsN52te(num))
+			{
+				// Logged before any filtering, so a missing [EVENT] line can be told apart from a missing press.
+				Console.WriteLine("[RAW]   dev" + num + " sc=" + num4.ToString("X2") + (flag ? " up" : " down") + " state=0x" + num3.ToString("X") + (EditorForeground() ? " (editor in front)" : "") + (learnArmed ? " (learn armed)" : ""));
+			}
 			if (learnSwallow == (int)num4 && flag)
 			{
 				learnSwallow = -1;
@@ -441,49 +461,107 @@ internal static class Program
 		}
 	}
 
-	// Only the n52te's mouse interface is filtered, and only for middle-button events
-	// (the wheel click): the user's own mouse and all mouse movement are never captured.
+	// Only the n52te's mouse interface is filtered, and only for wheel and middle-button
+	// events: the user's own mouse and all mouse movement are never captured.
 	private static void SetMouseFilter()
 	{
 		predMouse = (int device) => (interception_is_mouse(device) != 0 && IsN52te(device)) ? 1 : 0;
-		interception_set_filter(ctx, predMouse, MOUSE_MIDDLE_DOWN | MOUSE_MIDDLE_UP);
+		interception_set_filter(ctx, predMouse, MOUSE_MIDDLE_DOWN | MOUSE_MIDDLE_UP | MOUSE_WHEEL);
 	}
 
 	private static void HandleMouse(int device, byte[] stroke)
 	{
 		int state = stroke[0] | (stroke[1] << 8);
-		bool down = (state & MOUSE_MIDDLE_DOWN) != 0;
-		bool up = (state & MOUSE_MIDDLE_UP) != 0;
-		if ((!down && !up) || !IsN52te(device))
+		if (verbose && IsN52te(device))
+		{
+			Console.WriteLine("[RAW]   dev" + device + " mouse state=0x" + state.ToString("X3") + " rolling=" + (short)(stroke[4] | (stroke[5] << 8)));
+		}
+		if (!IsN52te(device) || (state & (MOUSE_MIDDLE_DOWN | MOUSE_MIDDLE_UP | MOUSE_WHEEL)) == 0)
 		{
 			interception_send(ctx, device, stroke, 1u);
 			return;
 		}
+		// Whatever isn't remapped is passed on; normally a stroke carries only one of these.
+		int passState = state & ~(MOUSE_MIDDLE_DOWN | MOUSE_MIDDLE_UP | MOUSE_WHEEL);
+		if ((state & MOUSE_WHEEL) != 0 && !HandleWheel(device, stroke))
+		{
+			passState |= MOUSE_WHEEL;
+		}
+		int middle = state & (MOUSE_MIDDLE_DOWN | MOUSE_MIDDLE_UP);
+		if (middle != 0 && !HandleWheelClick(device, (middle & MOUSE_MIDDLE_UP) != 0))
+		{
+			passState |= middle;
+		}
+		if (passState != 0)
+		{
+			stroke[0] = (byte)(passState & 0xFF);
+			stroke[1] = (byte)((passState >> 8) & 0xFF);
+			if ((passState & MOUSE_WHEEL) == 0)
+			{
+				stroke[4] = 0;
+				stroke[5] = 0;
+			}
+			interception_send(ctx, device, stroke, 1u);
+		}
+	}
+
+	// Returns true if the wheel click was consumed (remapped or used by Learn/Identify).
+	private static bool HandleWheelClick(int device, bool up)
+	{
 		if (learnSwallowMouse && up)
 		{
 			learnSwallowMouse = false;
-			return;
+			return true;
 		}
-		if (learnArmed && down && EditorForeground())
+		if (learnArmed && !up && EditorForeground())
 		{
 			learnArmed = false;
 			learnSwallowMouse = true;
 			WriteLearnResult(HardwareId(device), WHEEL_CLICK_CODE);
-			return;
+			return true;
 		}
 		if (EditorForeground())
 		{
-			interception_send(ctx, device, stroke, 1u);
-			return;
+			return false;
 		}
 		Mapping map = PickMapping("BWHEEL", up);
 		Trace("BWHEEL", WHEEL_CLICK_CODE, up, map);
 		if (map == null)
 		{
-			interception_send(ctx, device, stroke, 1u);
-			return;
+			return false;
 		}
 		Execute("BWHEEL", map, up);
+		return true;
+	}
+
+	// One wheel notch = one press and release of "BWUP" or "BWDOWN". Returns true if consumed.
+	private static bool HandleWheel(int device, byte[] stroke)
+	{
+		short rolling = (short)(stroke[4] | (stroke[5] << 8));
+		if (rolling == 0)
+		{
+			return false;
+		}
+		string id = (rolling > 0) ? "BWUP" : "BWDOWN";
+		if (learnArmed && EditorForeground())
+		{
+			learnArmed = false;
+			WriteLearnResult(HardwareId(device), (rolling > 0) ? WHEEL_UP_CODE : WHEEL_DOWN_CODE);
+			return true;
+		}
+		if (EditorForeground())
+		{
+			return false;
+		}
+		Mapping map = CurrentMapping(id);
+		Trace(id, (rolling > 0) ? WHEEL_UP_CODE : WHEEL_DOWN_CODE, false, map);
+		if (map == null)
+		{
+			return false;
+		}
+		Execute(id, map, false);
+		Execute(id, map, true);
+		return true;
 	}
 
 	private static string ButtonId(uint sc, ushort rawCode)
@@ -862,7 +940,7 @@ internal static class Program
 			string text2 = HardwareId(j);
 			if (!string.IsNullOrEmpty(text2) && MatchesN52te(text2))
 			{
-				stringBuilder.AppendLine("[n52te] dev" + j + "  mouse (wheel click)  " + text2);
+				stringBuilder.AppendLine("[n52te] dev" + j + "  mouse (wheel)  " + text2);
 			}
 		}
 		if (print)
@@ -1015,11 +1093,11 @@ internal static class Program
 		Dictionary<int, string> byVk = new Dictionary<int, string>();
 		foreach (KeyValuePair<string, int> item in SRC)
 		{
-			if (item.Key != "BWHEEL" && dictionary2.TryGetValue(item.Key, out result))
+			if (!IsMouseSource(item.Key) && dictionary2.TryGetValue(item.Key, out result))
 			{
 				bySc[result] = item.Key;
 			}
-			else if (item.Key != "BWHEEL")
+			else if (!IsMouseSource(item.Key))
 			{
 				byVk[item.Value] = item.Key;
 			}

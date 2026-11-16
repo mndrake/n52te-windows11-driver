@@ -28,35 +28,37 @@ global PHYS := Map(
 "B11","LShift", "B12","z", "B13","x", "B14","c",
 "BESP","Space", "BALT","LAlt",
 "BUP","Up", "BDOWN","Down", "BLEFT","Left", "BRIGHT","Right",
-"BWHEEL","MButton")
+"BWHEEL","MButton", "BWUP","WheelUp", "BWDOWN","WheelDown")
 global NICE := Map(
 "B01","01", "B02","02", "B03","03", "B04","04", "B05","05",
 "B06","06", "B07","07", "B08","08", "B09","09", "B10","10",
 "B11","11", "B12","12", "B13","13", "B14","14",
 "BESP","Thumb", "BALT","Round",
 "BUP","Up", "BDOWN","Down", "BLEFT","Left", "BRIGHT","Right",
-"BWHEEL","Wheel")
+"BWHEEL","Wheel", "BWUP","Wheel", "BWDOWN","Wheel")
 global FACTORY := Map(
 "B01","Tab","B02","Q","B03","W","B04","E","B05","R",
 "B06","Caps","B07","A","B08","S","B09","D","B10","F",
 "B11","Shift","B12","Z","B13","X","B14","C",
 "BESP","Space","BALT","Alt","BUP","↑","BDOWN","↓","BLEFT","←","BRIGHT","→",
-"BWHEEL","Click")
+"BWHEEL","Click", "BWUP","Up", "BWDOWN","Down")
 ; "none" must stay 5th: it is the fallback index used below.
 global TYPES := ["key","send","text","run","none","keymap"]
-global TYPELABELS := ["Key (held down)","Combo / macro","Type text","Open program or website","No change (original)","Switch keymap (Blue / Red / Green)"]
+global TYPELABELS := ["Key (held down)","Combo / macro","Type text","Open program or website","No change (original)","Switch keymap (Blue / Green / Red)"]
 ; Keymaps, as in the original Belkin software. Blue is the default and lives in the
 ; original [Botones] section, so configs from earlier versions keep working.
-global LAYERS := ["Botones","Botones.Red","Botones.Green"]
-global LAYERNAMES := ["Blue","Red","Green"]
-global LAYERBG := ["0x1F5FBF","0xB0302A","0x2D7D46"]
-global LAYERFG := ["4C8DFF","FF6A5F","4CC76A"]
-global KEYMAPLABELS := ["Cycle keymaps (Blue, Red, Green)","Blue (toggle)","Red (toggle)","Green (toggle)","Blue (only while held)","Red (only while held)","Green (only while held)"]
-global KEYMAPVALUES := ["cycle","blue","red","green","blue hold","red hold","green hold"]
+; Same order as the original software and the firmware (keymap 0/1/2 = Blue/Green/Red).
+global LAYERS := ["Botones","Botones.Green","Botones.Red"]
+global LAYERNAMES := ["Blue","Green","Red"]
+global LAYERBG := ["0x1F5FBF","0x2D7D46","0xB0302A"]
+global LAYERFG := ["4C8DFF","4CC76A","FF6A5F"]
+global KEYMAPLABELS := ["Cycle keymaps (Blue, Green, Red)","Blue (toggle)","Green (toggle)","Red (toggle)","Blue (only while held)","Green (only while held)","Red (only while held)"]
+global KEYMAPVALUES := ["cycle","blue","green","red","blue hold","green hold","red hold"]
 global COL_SWITCH := "0x6A3FA0"
 global KEYMAPFILE := CFGDIR "\keymap.txt"
-; Code the remapper reports for the wheel click in Identify (it has no keyboard scancode).
-global WHEELCODE := 0x1004
+; Codes the remapper reports for the wheel in Identify (it has no keyboard scancodes).
+global WHEELCODE := 0x1004, WHEELUPCODE := 0x1005, WHEELDOWNCODE := 0x1006
+global WHEELCODES := Map("BWHEEL", WHEELCODE, "BWUP", WHEELUPCODE, "BWDOWN", WHEELDOWNCODE)
 global curLayer := 1
 global quickIsKeymap := false
 global QUICKKEYS := ["F13","F14","F15","F16","F17","F18","F19","F20","F21","F22","F23","F24",
@@ -67,7 +69,7 @@ global QUICKKEYS := ["F13","F14","F15","F16","F17","F18","F19","F20","F21","F22"
 global ORDER := ["B01","B02","B03","B04","B05","B06","B07","B08","B09","B10","B11","B12","B13","B14",
 "BESP","BALT","BUP","BDOWN","BLEFT","BRIGHT"]
 global IDENTIFY_IDS := ORDER.Clone()
-IDENTIFY_IDS.Push("BWHEEL")
+IDENTIFY_IDS.Push("BWHEEL", "BWUP", "BWDOWN")
 global config := LoadConfig()
 global origin := LoadOrigin()
 global tile := Map()
@@ -76,7 +78,7 @@ global LAYOUT := Map(
 "B06",[126,191], "B07",[144,185], "B08",[163,183], "B09",[180,182], "B10",[200,181],
 "B11",[128,209], "B12",[147,203], "B13",[165,201], "B14",[183,200])
 global SCALE := 3.1, ORIGINX := 115.0, ORIGINY := 152.0, SX := 40, SY := 86
-; Default actions for keymap L (1 = Blue). Red and Green start with no changes.
+; Default actions for keymap L (1 = Blue). Green and Red start with no changes.
 Defaults(L := 1) {
 d := Map()
 for id in PHYS
@@ -93,7 +95,7 @@ d["B13"] := {type:"key", value:"Media_Play_Pause"}
 d["B14"] := {type:"key", value:"Volume_Mute"}
 return d
 }
-; config[L][id] = {type, value} for keymap L = 1 (Blue), 2 (Red), 3 (Green).
+; config[L][id] = {type, value} for keymap L = 1 (Blue), 2 (Green), 3 (Red).
 LoadConfig() {
 c := [Defaults(1), Defaults(2), Defaults(3)]
 if FileExist(INI) {
@@ -151,10 +153,14 @@ AhkToSc(sc) => (sc & 0x100) ? (0xE000 | (sc & 0xFF)) : sc
 ScName(sc) {
 if (sc = WHEELCODE)
 return "Wheel click"
+if (sc = WHEELUPCODE)
+return "Wheel up"
+if (sc = WHEELDOWNCODE)
+return "Wheel down"
 n := GetKeyName(Format("sc{:03X}", ScToAhk(sc)))
 return n = "" ? Format("sc{:02X}", sc) : StrLen(n) = 1 ? StrUpper(n) : n
 }
-SourceSc(id) => (id = "BWHEEL") ? WHEELCODE : origin.Has(id) ? origin[id] : AhkToSc(GetKeySC(PHYS[id]))
+SourceSc(id) => WHEELCODES.Has(id) ? WHEELCODES[id] : origin.Has(id) ? origin[id] : AhkToSc(GetKeySC(PHYS[id]))
 SourceName(id) => origin.Has(id) ? ScName(origin[id]) : FACTORY[id]
 if FileExist(A_ScriptDir "\infomalena.ico")
 try TraySetIcon(A_ScriptDir "\infomalena.ico")
@@ -199,7 +205,10 @@ AddTile("BLEFT", 360, 216, 56, 34)
 AddTile("BRIGHT",448, 216, 56, 34)
 AddTile("BDOWN", 404, 254, 56, 34)
 AddTile("BESP",  360, 300, 120, 44)
-AddTile("BWHEEL", 230, 296, 110, 44)
+; Scroll wheel (firmware inputs 16-18), drawn below the keys.
+AddTile("BWUP",   110, 296, 72, 44)
+AddTile("BWHEEL", 188, 296, 72, 44)
+AddTile("BWDOWN", 266, 296, 72, 44)
 g.SetFont("s9 cWhite")
 panelX := 520
 g.AddText("x" panelX " y60 w300 h334 +Border Background" COL_PANEL)
@@ -348,9 +357,9 @@ StopLearn()
 return
 }
 }
-if (learnMode = "wizard" && sc = WHEELCODE) {
+if (learnMode = "wizard" && sc >= WHEELCODE && sc <= WHEELDOWNCODE) {
 ArmLearn()
-SetStatus("That was the wheel click, which isn't part of Learn keys. Press button " NICE[ORDER[wizIdx]] " or 'Skip'.")
+SetStatus("That was the scroll wheel, which isn't part of Learn keys. Press button " NICE[ORDER[wizIdx]] " or 'Skip'.")
 return
 }
 SoundBeep 700, 70
@@ -490,7 +499,7 @@ else
 SetStatus("OK: button " NICE[selectedId] " assigned in the " LAYERNAMES[curLayer] " keymap. To TEST it, click outside this window and press the button on the n52te.")
 }
 ResetDefaults(*) {
-if MsgBox("Restore ALL buttons in all three keymaps (Blue, Red, Green) to their defaults?", "n52te Editor", "YesNo Icon?") = "Yes" {
+if MsgBox("Restore ALL buttons in all three keymaps (Blue, Green, Red) to their defaults?", "n52te Editor", "YesNo Icon?") = "Yes" {
 global config := [Defaults(1), Defaults(2), Defaults(3)]
 SaveConfig()
 RefreshAll()
