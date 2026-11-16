@@ -5,7 +5,11 @@ The blob is the editor's copy of the keypad's onboard (Synapse) memory:
 3 keymaps (0=Blue, 1=Green, 2=Red) x 27 inputs x 0x104-byte records, plus
 one trailing byte. Each record is:
 
-    +0x000  code     firmware key code of the input (table below)
+    +0x000  code     what the input does:
+                       a key/command/mouse/keymap code (table below), or
+                       MACRO_MARK[input]  -> play the macro in seq, or
+                       PC_MARK[input]     -> PC-side action: seq[0] = type, seq[1] = parameter
+                       0x00               -> disabled
     +0x001  seq      128 x (code, flags) pairs; flags bit0 = 1 press / 0 release,
                      delays are stored as code 0xFF entries in the editor copy
     +0x101  p1, p2, p3  per-input options (factory: 01 01 00)
@@ -58,6 +62,17 @@ INPUTS = [
     "Thumb pad", "D-pad up", "D-pad right", "D-pad down", "D-pad left",
     "D-pad up+right", "D-pad down+right", "D-pad down+left", "D-pad up+left",
 ]
+# Per-input marker codes, from n52teCfg.exe tables at 0x4a487c and 0x4a4898.
+MACRO_MARK = [0xA0, 0xA4, 0xA8, 0xAC, 0xB0, 0xA1, 0xA5, 0xA9, 0xAD, 0xB1, 0xA2, 0xA6, 0xAA,
+              0xAE, 0xA3, 0xBA, 0xB8, 0xB9, 0xB2, 0xB3, 0xAB, 0xAF, 0xA7, 0xB4, 0xB5, 0xB6, 0xB7]
+PC_MARK = [0x7C, 0x7E, 0x80, 0x81, 0x82, 0x84, 0x85, 0x87, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8F,
+           0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x99, 0x9B, 0x9D, 0x9E, 0x9F]
+# PC-side action types (executed by n52teHid.exe; dead on Windows 11 without it).
+PC_TYPES = {1: "joystick button", 2: "joystick axis min", 3: "joystick axis max",
+            4: "load profile", 5: "launch application", 6: "joystick up+right",
+            7: "joystick down+right", 8: "joystick down+left", 9: "joystick up+left",
+            0x10: "minimise window", 0x11: "maximise window", 0x12: "open Explorer (Win+E)",
+            0x13: "zoom out", 0x14: "zoom in", 0x15: "media player shuffle"}
 KEYMAPS = ["Blue", "Green", "Red"]
 REC = 0x104
 
@@ -78,6 +93,11 @@ def main(path):
         for i, label in enumerate(INPUTS):
             rec = blob[(km * 27 + i) * REC:(km * 27 + i + 1) * REC]
             code, seq, opts = rec[0], rec[1:0x101], rec[0x101:0x104]
+            if code == PC_MARK[i]:
+                kind = PC_TYPES.get(seq[0], f"type 0x{seq[0]:02X}")
+                print(f"  {i + 1:2d} {label:<22} PC-side: {kind} (param {seq[1]})  opts={opts.hex()}")
+                continue
+            what = "disabled" if code == 0 else "macro" if code == MACRO_MARK[i] else name(code)
             steps = []
             for j in range(0, 0x100, 2):
                 c, f = seq[j], seq[j + 1]
@@ -85,7 +105,7 @@ def main(path):
                     break
                 steps.append(("+" if f & 1 else "-") + name(c))
             macro = f"  macro: {' '.join(steps)}" if steps else ""
-            print(f"  {i + 1:2d} {label:<22} {name(code):<22} opts={opts.hex()}{macro}")
+            print(f"  {i + 1:2d} {label:<22} {what:<22} opts={opts.hex()}{macro}")
     tail = blob[3 * 27 * REC:]
     print(f"\ntrailing bytes: {tail.hex() or '(none)'}")
 

@@ -80,6 +80,8 @@ Experimental: the remapper filters by Belkin's USB vendor ID (`VID_050D`), not o
 - The editor (`Editor n52te.exe`) writes the configuration to `%ProgramData%\n52te\n52te_config.ini`, which the remapper hot-reloads automatically (~1 second).
 - Deploying to several workstations: install once per machine (admin + one reboot) and copy the same `.ini` everywhere. No cloud, no accounts, no Synapse.
 
+- How the original 2008 Belkin driver worked, and why the scroll wheel, mouse functions and keymap LEDs need more than key remapping: **[docs/original-driver-analysis.md](docs/original-driver-analysis.md)** (full reverse-engineering notes in [docs/reverse-engineering/](docs/reverse-engineering/README.md)).
+
 Detailed install guide: **[INSTALL.md](INSTALL.md)** (Spanish — the quick steps above cover the whole process).
 
 ## 🙏 Credits and third-party licenses
@@ -166,6 +168,7 @@ Experimental: el remapeador filtra por el vendor ID USB de Belkin (`VID_050D`), 
 - Un servicio en segundo plano (`n52te_interception.exe`) lee cada pulsación, comprueba si viene del n52te (`VID_050D`) y, si es así, emite la acción configurada; cualquier otro teclado pasa intacto.
 - El editor (`Editor n52te.exe`) escribe la configuración en `%ProgramData%\n52te\n52te_config.ini`, que el remapeador recarga automáticamente.
 - Para varias estaciones de trabajo: instala una vez por equipo (admin + un reinicio) y copia el mismo `.ini` en todas. Sin nube, sin cuentas, sin Synapse.
+- Cómo funcionaba el driver original de Belkin de 2008 y por qué la rueda, las funciones de ratón y los LED de keymap necesitan algo más que remapear teclas: **[docs/original-driver-analysis.md](docs/original-driver-analysis.md)** (notas completas en [docs/reverse-engineering/](docs/reverse-engineering/README.md), en inglés).
 
 ## 🙏 Créditos y licencias de terceros
 

@@ -12,6 +12,10 @@ Everything below comes from static analysis only (Ghidra 11.1.2 / radare2 on the
 decompiling this project's own `Instalar-n52te.exe` payload). No hardware was attached, so the
 items marked *unverified* need a USB capture or a test on a real keypad.
 
+The full reference (every IOCTL, the protocol, the profile format, the complete key-code
+table, the service's actions and the editor's menu → code mapping) is in
+[`reverse-engineering/`](reverse-engineering/README.md). This page is the summary.
+
 ## TL;DR
 
 The n52te is not "a keyboard with a driver". It is a **composite USB device with its own
@@ -109,11 +113,11 @@ All requests are `bmRequestType = 0x21` (OUT) / `0xA1` (IN), `bRequest = 0x09` (
 | `0x222414` | `IOCTL_GET_GROUP_SETTING` | GET | 3 | `(keymap << 8) \| chunk#` | read back a chunk |
 | `0x222418` | `IOCTL_SET_PROFILEID` | SET | 4 | 0 | 8 bytes `00 08 00 03 00 KM X0 X1` (selects active keymap → LED) |
 | `0x22241C` | `IOCTL_GET_PROFILEID` | GET | 5 | 0 | 8 bytes, byte 5 = active keymap |
-| `0x222440` | `IOCTL_GET_RESULT` (2nd) | GET | 6 | 0 | status |
+| `0x222440` | `IOCTL_GET_FWVERSION` | GET | 6 | 0 | 8 bytes, firmware version |
 | `0x222450` | `IOCTL_ENTER_ICP` | SET | 7 | 0 | 1 byte; presumably switches to the firmware-update bootloader handled by `Usbicp.sys` |
 | `0x222458` | `IOCTL_SET_DRIVER_MODE` | SET | 8 | 0 | 1 byte `00`. Also sent automatically on every resume to D0 |
 | `0x222454`/`0x22245C` | `…GET_ICP_RESULT` / `…GET_DRIVER_MODE_RESULT` | GET | 8 | 0 | status |
-| `0x222460` | `IOCTL_SET_POLLINGRATE` | SET | 9 | 0 | polling-rate setting (125/500/1000 Hz) |
+| `0x222460` | `IOCTL_SET_POLLINGRATE` | SET | 9 | 0 | 8 bytes `00 08 00 04 00 MS X0 X1`, MS = interval in ms (8/2/1 = 125/500/1000 Hz) |
 | `0x222464` | `IOCTL_GET_POLLINGRATE` | GET | 10 | 0 | |
 | `0x222444` | `IOCTL_SET_CURRENTPROFILE` | (driver only) | | | 2 bytes; byte 1 becomes the `wIndex` high byte |
 | `0x222420` | `IOCTL_CLEAR_BUFFER_INDEX` | (driver only) | | | resets `chunk#` to 0 |
@@ -162,9 +166,12 @@ manual's default layout:
 | 24–27 | D-pad diagonals | firmware macros (e.g. `+Up +Right -Up -Right`) |
 
 Firmware code space (from the editor's code→name tables): `0x10`–`0x9F` are keys in Razer's
-own numbering (not HID usages, e.g. `0x13`=Tab, `0x57`=Space, `0x75`=Up), and then the special codes:
+own numbering (not HID usages, e.g. `0x13`=Tab, `0x57`=Space, `0x75`=Up). Each input also has
+two marker codes of its own: a **macro marker** (`0xA0`–`0xBA`, "play this input's macro"; the
+factory diagonals `B4`–`B7` are these) and a **PC-action marker** (`0x7C`–`0x9F`, "PC-side
+action, type in the first macro byte"). Then there are the special codes:
 
-* `0xC0`–`0xCC` basic/additional commands (Cut, Copy, Paste, Swap/Close windows, …),
+* `0xC0`–`0xCE` basic/additional commands (Cut, Copy, Paste, Swap/Close windows, …),
 * **`0xD0` Left Button, `0xD1` Right Button, `0xD2` Middle Button, `0xD3` Scroll down,
   `0xD4` Scroll up, `0xD5`–`0xD8` mouse X/Y movement**,
 * **`0xD9` Cycle Keymaps, `0xDA`/`0xDB` Blue toggle/momentary, `0xDC`/`0xDD` Green,
@@ -270,6 +277,7 @@ profile from the old editor.
 
 * `research/extract_belkin_package.py`: unpacks the Chilkat SFX (raw-deflate chunks) without running it.
 * `research/decode_n52te_profile.py`: decodes a v2.1.2 profile `.ini` (3 keymaps × 27 inputs).
+* Full reference notes: [`reverse-engineering/`](reverse-engineering/README.md).
 * Decompilation: Ghidra 11.1.2 headless (`analyzeHeadless … -postScript` dumping every function),
   radare2 for the x64 completion routine at `0x10a80`, ILSpy for the .NET remapper/installer.
   Key addresses: `JmtFltr.sys` x86 IOCTL dispatch `0x10c60`, interrupt completion `0x10a50`,
