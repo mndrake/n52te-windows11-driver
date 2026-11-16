@@ -27,20 +27,38 @@ global PHYS := Map(
 "B06","CapsLock", "B07","a", "B08","s", "B09","d", "B10","f",
 "B11","LShift", "B12","z", "B13","x", "B14","c",
 "BESP","Space", "BALT","LAlt",
-"BUP","Up", "BDOWN","Down", "BLEFT","Left", "BRIGHT","Right")
+"BUP","Up", "BDOWN","Down", "BLEFT","Left", "BRIGHT","Right",
+"BWHEEL","MButton")
 global NICE := Map(
 "B01","01", "B02","02", "B03","03", "B04","04", "B05","05",
 "B06","06", "B07","07", "B08","08", "B09","09", "B10","10",
 "B11","11", "B12","12", "B13","13", "B14","14",
 "BESP","Thumb", "BALT","Round",
-"BUP","Up", "BDOWN","Down", "BLEFT","Left", "BRIGHT","Right")
+"BUP","Up", "BDOWN","Down", "BLEFT","Left", "BRIGHT","Right",
+"BWHEEL","Wheel")
 global FACTORY := Map(
 "B01","Tab","B02","Q","B03","W","B04","E","B05","R",
-"B06","CapsLock","B07","A","B08","S","B09","D","B10","F",
+"B06","Caps","B07","A","B08","S","B09","D","B10","F",
 "B11","Shift","B12","Z","B13","X","B14","C",
-"BESP","Space","BALT","Alt","BUP","↑","BDOWN","↓","BLEFT","←","BRIGHT","→")
-global TYPES := ["key","send","text","run","none"]
-global TYPELABELS := ["Key (held down)","Combo / macro","Type text","Open program or website","No change (original)"]
+"BESP","Space","BALT","Alt","BUP","↑","BDOWN","↓","BLEFT","←","BRIGHT","→",
+"BWHEEL","Click")
+; "none" must stay 5th: it is the fallback index used below.
+global TYPES := ["key","send","text","run","none","keymap"]
+global TYPELABELS := ["Key (held down)","Combo / macro","Type text","Open program or website","No change (original)","Switch keymap (Blue / Red / Green)"]
+; Keymaps, as in the original Belkin software. Blue is the default and lives in the
+; original [Botones] section, so configs from earlier versions keep working.
+global LAYERS := ["Botones","Botones.Red","Botones.Green"]
+global LAYERNAMES := ["Blue","Red","Green"]
+global LAYERBG := ["0x1F5FBF","0xB0302A","0x2D7D46"]
+global LAYERFG := ["4C8DFF","FF6A5F","4CC76A"]
+global KEYMAPLABELS := ["Cycle keymaps (Blue, Red, Green)","Blue (toggle)","Red (toggle)","Green (toggle)","Blue (only while held)","Red (only while held)","Green (only while held)"]
+global KEYMAPVALUES := ["cycle","blue","red","green","blue hold","red hold","green hold"]
+global COL_SWITCH := "0x6A3FA0"
+global KEYMAPFILE := CFGDIR "\keymap.txt"
+; Code the remapper reports for the wheel click in Identify (it has no keyboard scancode).
+global WHEELCODE := 0x1004
+global curLayer := 1
+global quickIsKeymap := false
 global QUICKKEYS := ["F13","F14","F15","F16","F17","F18","F19","F20","F21","F22","F23","F24",
 "Enter","Space","Esc","Tab","Backspace","Delete","Home","End","PgUp","PgDn",
 "Up","Down","Left","Right","LCtrl","LShift","LAlt",
@@ -48,6 +66,8 @@ global QUICKKEYS := ["F13","F14","F15","F16","F17","F18","F19","F20","F21","F22"
 "LButton","RButton","MButton","XButton1","XButton2"]
 global ORDER := ["B01","B02","B03","B04","B05","B06","B07","B08","B09","B10","B11","B12","B13","B14",
 "BESP","BALT","BUP","BDOWN","BLEFT","BRIGHT"]
+global IDENTIFY_IDS := ORDER.Clone()
+IDENTIFY_IDS.Push("BWHEEL")
 global config := LoadConfig()
 global origin := LoadOrigin()
 global tile := Map()
@@ -56,8 +76,13 @@ global LAYOUT := Map(
 "B06",[126,191], "B07",[144,185], "B08",[163,183], "B09",[180,182], "B10",[200,181],
 "B11",[128,209], "B12",[147,203], "B13",[165,201], "B14",[183,200])
 global SCALE := 3.1, ORIGINX := 115.0, ORIGINY := 152.0, SX := 40, SY := 86
-Defaults() {
+; Default actions for keymap L (1 = Blue). Red and Green start with no changes.
+Defaults(L := 1) {
 d := Map()
+for id in PHYS
+d[id] := {type:"none", value:""}
+if (L != 1)
+return d
 fk := ["F13","F14","F15","F16","F17","F18","F19","F20","F21","F22","F23","F24"]
 i := 1
 for id in ["B01","B02","B03","B04","B05","B06","B07","B08","B09","B10","B11","B12"] {
@@ -66,26 +91,27 @@ i++
 }
 d["B13"] := {type:"key", value:"Media_Play_Pause"}
 d["B14"] := {type:"key", value:"Volume_Mute"}
-for id in ["BESP","BALT","BUP","BDOWN","BLEFT","BRIGHT"]
-d[id] := {type:"none", value:""}
 return d
 }
+; config[L][id] = {type, value} for keymap L = 1 (Blue), 2 (Red), 3 (Green).
 LoadConfig() {
-c := Defaults()
+c := [Defaults(1), Defaults(2), Defaults(3)]
 if FileExist(INI) {
+for L, sec in LAYERS
 for id in PHYS {
-raw := IniRead(INI, "Botones", id, "")
+raw := IniRead(INI, sec, id, "")
 if raw != "" {
 p := InStr(raw, "|")
-c[id] := {type:(p ? SubStr(raw,1,p-1) : raw), value:(p ? SubStr(raw,p+1) : "")}
+c[L][id] := {type:(p ? SubStr(raw,1,p-1) : raw), value:(p ? SubStr(raw,p+1) : "")}
 }
 }
 }
 return c
 }
 SaveConfig() {
-for id, def in config
-IniWrite(def.type "|" def.value, INI, "Botones", id)
+for L, sec in LAYERS
+for id, def in config[L]
+IniWrite(def.type "|" def.value, INI, sec, id)
 }
 LoadOrigin() {
 o := Map()
@@ -123,10 +149,12 @@ return m[0]
 ScToAhk(sc) => ((sc & 0xFF00) = 0xE000 ? 0x100 : 0) | (sc & 0xFF)
 AhkToSc(sc) => (sc & 0x100) ? (0xE000 | (sc & 0xFF)) : sc
 ScName(sc) {
+if (sc = WHEELCODE)
+return "Wheel click"
 n := GetKeyName(Format("sc{:03X}", ScToAhk(sc)))
 return n = "" ? Format("sc{:02X}", sc) : StrLen(n) = 1 ? StrUpper(n) : n
 }
-SourceSc(id) => origin.Has(id) ? origin[id] : AhkToSc(GetKeySC(PHYS[id]))
+SourceSc(id) => (id = "BWHEEL") ? WHEELCODE : origin.Has(id) ? origin[id] : AhkToSc(GetKeySC(PHYS[id]))
 SourceName(id) => origin.Has(id) ? ScName(origin[id]) : FACTORY[id]
 if FileExist(A_ScriptDir "\infomalena.ico")
 try TraySetIcon(A_ScriptDir "\infomalena.ico")
@@ -140,6 +168,16 @@ g.SetFont("s12 Bold cWhite")
 g.AddText("x66 y10 w400", "n52te Button Editor")
 g.SetFont("s8 cSilver")
 g.AddText("x66 y34 w560", "Click a button, choose what it does and press Assign. Changes apply instantly.")
+; Keymap tabs: which keymap the editor is showing and editing.
+g.SetFont("s9 Bold cSilver")
+global tabs := []
+for i, nm in LAYERNAMES {
+tabCtl := g.AddText("x" (20 + (i-1)*78) " y58 w74 h24 +Center +0x200 +Border Background" COL_NONE, nm)
+tabCtl.OnEvent("Click", SetEditLayer.Bind(i))
+tabs.Push(tabCtl)
+}
+g.SetFont("s8 Bold cSilver")
+global txtActive := g.AddText("x262 y63 w250", "")
 g.SetFont("s9 cWhite")
 AddTile(id, x, y, w, h) {
 t := g.AddText("x" Round(x) " y" Round(y) " w" w " h" h " +Center +Border", "")
@@ -161,6 +199,7 @@ AddTile("BLEFT", 360, 216, 56, 34)
 AddTile("BRIGHT",448, 216, 56, 34)
 AddTile("BDOWN", 404, 254, 56, 34)
 AddTile("BESP",  360, 300, 120, 44)
+AddTile("BWHEEL", 230, 296, 110, 44)
 g.SetFont("s9 cWhite")
 panelX := 520
 g.AddText("x" panelX " y60 w300 h334 +Border Background" COL_PANEL)
@@ -176,11 +215,11 @@ btnLearn.OnEvent("Click", StartWizard)
 g.AddText("x" (panelX+14) " y160 w272 cWhite", "What the button does:")
 global ddlType := g.AddDropDownList("x" (panelX+14) " y180 w272", TYPELABELS)
 ddlType.OnEvent("Change", (*) => UpdateHint())
-g.AddText("x" (panelX+14) " y212 w80 cWhite", "Quick key:")
+global lblQuick := g.AddText("x" (panelX+14) " y212 w80 cWhite", "Quick key:")
 global ddlQuick := g.AddDropDownList("x" (panelX+100) " y208 w186", QUICKKEYS)
-ddlQuick.OnEvent("Change", (*) => (edtVal.Value := ddlQuick.Text))
+ddlQuick.OnEvent("Change", (*) => (edtVal.Value := quickIsKeymap ? KEYMAPVALUES[ddlQuick.Value] : ddlQuick.Text))
 g.AddText("x" (panelX+14) " y240 w80 cWhite", "Value:")
-global edtVal := g.AddEdit("x" (panelX+100) " y236 w186")
+global edtVal := g.AddEdit("x" (panelX+100) " y236 w186 cBlack")
 g.SetFont("s8 cSilver")
 global txtHint := g.AddText("x" (panelX+14) " y268 w272 h44 +Wrap", "")
 g.SetFont("s10 Bold cWhite")
@@ -193,7 +232,7 @@ global chkStart := g.AddCheckbox("x185 y411 w320 cWhite", "Start the remapper wi
 chkStart.OnEvent("Click", ToggleStartup)
 g.SetFont("s8 cSilver")
 global txtDev := g.AddText("x20 y362 w330 h40 +Wrap", "")
-global txtStatus := g.AddText("x20 y444 w580 h26 +Wrap", "")
+global txtStatus := g.AddText("x20 y444 w580 h36 +Wrap", "")
 g.SetFont("s9 cWhite")
 if FileExist(A_ScriptDir "\logo_footer.png")
 g.AddPicture("x630 y426 w200 h38", A_ScriptDir "\logo_footer.png")
@@ -309,10 +348,15 @@ StopLearn()
 return
 }
 }
+if (learnMode = "wizard" && sc = WHEELCODE) {
+ArmLearn()
+SetStatus("That was the wheel click, which isn't part of Learn keys. Press button " NICE[ORDER[wizIdx]] " or 'Skip'.")
+return
+}
 SoundBeep 700, 70
 if (learnMode = "identify") {
 StopLearn()
-for id in ORDER
+for id in IDENTIFY_IDS
 if (SourceSc(id) = sc) {
 SelectPad(id)
 return
@@ -333,12 +377,19 @@ WizardNext()
 ColorOf(id) {
 if id = selectedId
 return COL_SEL
-return (config[id].type = "none") ? COL_NONE : COL_ASSIGN
+t := config[curLayer][id].type
+return (t = "none") ? COL_NONE : (t = "keymap") ? COL_SWITCH : COL_ASSIGN
 }
 ShortVal(id) {
-def := config[id]
+def := config[curLayer][id]
 if def.type = "none"
 return "—"
+if def.type = "keymap" {
+v := def.value
+if (v = "cycle")
+return "Cycle"
+return InStr(v, " hold") ? "Hold " StrTitle(StrReplace(v, " hold")) : "→ " StrTitle(v)
+}
 if def.type = "text"
 return "text"
 if def.type = "run"
@@ -358,8 +409,8 @@ RefreshTile(id)
 }
 SelectPad(id, *) {
 global selectedId := id
-def := config[id]
-txtSel.Value := "Button " NICE[id]
+def := config[curLayer][id]
+txtSel.Value := "Button " NICE[id] "  ·  " LAYERNAMES[curLayer] " keymap"
 txtFac.Value := origin.Has(id) ? "Your keypad sends: " SourceName(id) : "Factory default: " FACTORY[id]
 idx := 5
 for i, t in TYPES
@@ -369,8 +420,22 @@ ddlType.Value := idx
 edtVal.Value := def.value
 ddlQuick.Value := 0
 UpdateHint()
+if (def.type = "keymap")
+for i, v in KEYMAPVALUES
+if (v = def.value)
+ddlQuick.Value := i
 RefreshAll()
-SetStatus("Configuring button " NICE[id] ". Choose an action and press Assign.")
+SetStatus("Configuring button " NICE[id] " in the " LAYERNAMES[curLayer] " keymap. Choose an action and press Assign.")
+}
+; Shows keymap choices in the quick list for "Switch keymap", key names otherwise.
+FillQuick(km) {
+global quickIsKeymap
+if (km = quickIsKeymap)
+return
+quickIsKeymap := km
+ddlQuick.Delete()
+ddlQuick.Add(km ? KEYMAPLABELS : QUICKKEYS)
+lblQuick.Value := km ? "Keymap:" : "Quick key:"
 }
 UpdateHint() {
 hints := [
@@ -378,10 +443,12 @@ hints := [
 "Sends a key combination. E.g.  ^c = Ctrl+C   !{Tab} = Alt+Tab   {F5 2} = F5 twice.",
 "Types the text in Value (phrases, chat commands...).",
 "Opens whatever is in Value. E.g.  notepad.exe   |   https://google.com",
-"The button keeps its factory behavior."
+"The button keeps its factory behavior.",
+"Switches the remapper's keymap; works the same in all three. The keypad's own light can't follow it: see 'Remapper keymap' top left."
 ]
 i := ddlType.Value
-txtHint.Value := (i >= 1 && i <= 5) ? hints[i] : ""
+FillQuick(i = 6)
+txtHint.Value := (i >= 1 && i <= hints.Length) ? hints[i] : ""
 }
 AssignCurrent(*) {
 if selectedId = "" {
@@ -394,18 +461,70 @@ if (t != "none" && v = "") {
 SetStatus("Enter a value, or choose 'No change'.")
 return
 }
-config[selectedId] := {type:t, value:v}
+if (t = "keymap") {
+v := StrLower(v)
+valid := false
+for kv in KEYMAPVALUES
+if (kv = v)
+valid := true
+if !valid {
+SetStatus("For 'Switch keymap', pick an option from the Keymap list (e.g. cycle, red, red hold).")
+return
+}
+; Like the original software, a keymap button does the same in all three keymaps.
+for L in [1, 2, 3]
+config[L][selectedId] := {type:t, value:v}
+} else {
+wasSwitch := config[curLayer][selectedId].type = "keymap"
+config[curLayer][selectedId] := {type:t, value:v}
+if wasSwitch
+for L in [1, 2, 3]
+if (L != curLayer && config[L][selectedId].type = "keymap")
+config[L][selectedId] := {type:"none", value:""}
+}
 SaveConfig()
-RefreshTile(selectedId)
-SetStatus("OK: button " NICE[selectedId] " assigned and applied. To TEST it, click outside this window and press the button on the n52te.")
+RefreshAll()
+if (t = "keymap")
+SetStatus("OK: button " NICE[selectedId] " now switches keymaps (" v "), in all three keymaps. Test it outside this window.")
+else
+SetStatus("OK: button " NICE[selectedId] " assigned in the " LAYERNAMES[curLayer] " keymap. To TEST it, click outside this window and press the button on the n52te.")
 }
 ResetDefaults(*) {
-if MsgBox("Restore ALL buttons to their defaults?", "n52te Editor", "YesNo Icon?") = "Yes" {
-global config := Defaults()
+if MsgBox("Restore ALL buttons in all three keymaps (Blue, Red, Green) to their defaults?", "n52te Editor", "YesNo Icon?") = "Yes" {
+global config := [Defaults(1), Defaults(2), Defaults(3)]
 SaveConfig()
 RefreshAll()
 SetStatus("Defaults restored and applied.")
 }
+}
+; Switches which keymap the editor shows and edits (not the one the remapper is using).
+SetEditLayer(i, *) {
+global curLayer := i
+for j, tabCtl in tabs {
+tabCtl.Opt("+Background" (j = i ? LAYERBG[j] : COL_NONE))
+tabCtl.SetFont(j = i ? "cWhite" : "cSilver")
+tabCtl.Redraw()
+}
+RefreshAll()
+if (selectedId != "")
+SelectPad(selectedId)
+}
+; The keypad's lights can't be changed without Belkin's driver, so show the keymap
+; the remapper is using here instead (it writes it to keymap.txt).
+RefreshActive() {
+static last := "-"
+k := ""
+if ProcessExist("n52te_interception.exe")
+try k := Trim(FileRead(KEYMAPFILE, "UTF-8"), " `t`r`n")
+if (k = last)
+return
+last := k
+idx := 0
+for i, nm in LAYERNAMES
+if (nm = k)
+idx := i
+txtActive.SetFont("c" (idx ? LAYERFG[idx] : "Silver"))
+txtActive.Value := idx ? "Remapper keymap: " k " (not the light)" : ""
 }
 SetStatus(msg) {
 on := ProcessExist("n52te_interception.exe")
@@ -421,7 +540,7 @@ try txt := FileRead(KBDLIST, "UTF-8")
 catch
 return
 if RegExMatch(txt, "m)^\[n52te\].*?(VID_[0-9A-F]{4}&PID_[0-9A-F]{4})", &m)
-txtDev.Value := "n52te detected by the remapper (" m[1] ")."
+txtDev.Value := "n52te detected by the remapper (" StrReplace(m[1], "&", "&&") ")."
 else
 txtDev.Value := "The remapper does NOT recognize your n52te, so nothing changes. Press 'Learn keys' so it can recognize it."
 }
@@ -448,10 +567,12 @@ A_TrayMenu.Add("Open editor", (*) => g.Show())
 A_TrayMenu.Add("Exit", (*) => ExitApp())
 A_TrayMenu.Default := "Open editor"
 A_IconTip := "n52te Editor"
-RefreshAll()
+SetEditLayer(1)
+RefreshActive()
+SetTimer(RefreshActive, 500)
 chkStart.Value := StartupOn() ? 1 : 0
 SetStatus("Ready. Click a button to configure it.")
-g.Show("w840 h478")
+g.Show("w840 h488")
 SetWinIcon()
 SetWinIcon() {
 ico := A_ScriptDir "\infomalena.ico"

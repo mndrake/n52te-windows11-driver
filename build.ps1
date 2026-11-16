@@ -3,18 +3,20 @@
   Builds Install-n52te.exe from the sources in src\.
 
 .DESCRIPTION
-  1. Compiles src\editor\n52te Editor.ahk with Ahk2Exe (AutoHotkey v2 base).
+  1. Checks src\editor\n52te Editor.ahk for syntax errors with AutoHotkey's /Validate.
+     The editor ships as this script plus the standard AutoHotkey64.exe interpreter,
+     not as a compiled exe (compiled AutoHotkey programs trip antivirus heuristics).
   2. Compiles src\remapper\Program.cs (n52te_interception.exe) with the
      .NET Framework 4.x C# compiler that ships with Windows.
-  3. Compiles src\installer\Installer.cs, embedding the two programs above
-     plus the files in src\installer\resources, into the installer.
+  3. Compiles src\installer\Installer.cs, embedding the editor script, AutoHotkey64.exe
+     and its license, the remapper and the files in src\installer\resources.
   4. Writes the installer's SHA-256 next to it.
 
-  Output goes to build\. Nothing is installed or run.
+  Output goes to build\. Nothing is installed.
 
   Tools needed (not committed; tools\ is git-ignored):
-    tools\ahk\AutoHotkey64.exe      AutoHotkey 2.0.30  https://www.autohotkey.com/download/2.0/
-    tools\ahk\Compiler\Ahk2Exe.exe  Ahk2Exe            https://github.com/AutoHotkey/Ahk2Exe/releases
+    tools\ahk\AutoHotkey64.exe and tools\ahk\license.txt
+      from the AutoHotkey 2.0.30 zip: https://www.autohotkey.com/download/2.0/
 #>
 [CmdletBinding()]
 param(
@@ -33,9 +35,9 @@ $res = Join-Path $src 'installer\resources'
 $obj = Join-Path $OutDir 'obj'
 
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-$ahkBase = Join-Path $AhkDir 'AutoHotkey64.exe'
-$ahk2exe = Join-Path $AhkDir 'Compiler\Ahk2Exe.exe'
-foreach ($tool in $csc, $ahkBase, $ahk2exe) {
+$ahkExe = Join-Path $AhkDir 'AutoHotkey64.exe'
+$ahkLicense = Join-Path $AhkDir 'license.txt'
+foreach ($tool in $csc, $ahkExe, $ahkLicense) {
     if (-not (Test-Path $tool)) { throw "Missing build tool: $tool (see the header of build.ps1)" }
 }
 
@@ -46,19 +48,16 @@ function Invoke-Csc([string[]]$CscArgs) {
     if ($LASTEXITCODE -ne 0) { throw "csc failed with exit code $LASTEXITCODE" }
 }
 
-# 1. Editor (AutoHotkey v2)
-Write-Host '== n52te Editor.exe'
-$editorExe = Join-Path $obj 'n52te Editor.exe'
-Remove-Item $editorExe -ErrorAction SilentlyContinue
-$ahkArgs = @(
-    '/in', "`"$(Join-Path $src 'editor\n52te Editor.ahk')`"",
-    '/out', "`"$editorExe`"",
-    '/base', "`"$ahkBase`"",
-    '/icon', "`"$(Join-Path $res 'infomalena.ico')`"",
-    '/silent', 'verbose'
-)
-$p = Start-Process $ahk2exe -ArgumentList $ahkArgs -Wait -PassThru -NoNewWindow
-if ($p.ExitCode -ne 0 -or -not (Test-Path $editorExe)) { throw "Ahk2Exe failed with exit code $($p.ExitCode)" }
+# 1. Editor (AutoHotkey v2 script): syntax check only
+Write-Host '== n52te Editor.ahk'
+$editorScript = Join-Path $src 'editor\n52te Editor.ahk'
+$errFile = Join-Path $obj 'ahk-validate.txt'
+$p = Start-Process $ahkExe -ArgumentList '/ErrorStdOut', '/Validate', "`"$editorScript`"" `
+    -Wait -PassThru -NoNewWindow -RedirectStandardError $errFile
+if ($p.ExitCode -ne 0) {
+    Get-Content $errFile | Write-Host
+    throw "The editor script has errors (AutoHotkey /Validate exit code $($p.ExitCode))"
+}
 
 # 2. Remapper (console app)
 Write-Host '== n52te_interception.exe'
@@ -69,14 +68,16 @@ Invoke-Csc @('/target:exe', "/out:$remapperExe", '/r:System.dll', '/r:System.Cor
 Write-Host "== $InstallerName"
 $installerExe = Join-Path $OutDir $InstallerName
 $payload = [ordered]@{
-    RES_REMAPPER = $remapperExe
-    RES_DLL      = Join-Path $res 'interception.dll'
-    RES_EDITOR   = $editorExe
-    RES_DRIVER   = Join-Path $res 'install-interception.exe'
-    RES_ICO      = Join-Path $res 'infomalena.ico'
-    RES_FAVICON  = Join-Path $res 'favicon.png'
-    RES_FOOTER   = Join-Path $res 'logo_footer.png'
-    RES_LOGO     = Join-Path $res 'logo.png'
+    RES_REMAPPER    = $remapperExe
+    RES_DLL         = Join-Path $res 'interception.dll'
+    RES_AHK         = $ahkExe
+    RES_AHK_LICENSE = $ahkLicense
+    RES_EDITOR      = $editorScript
+    RES_DRIVER      = Join-Path $res 'install-interception.exe'
+    RES_ICO         = Join-Path $res 'infomalena.ico'
+    RES_FAVICON     = Join-Path $res 'favicon.png'
+    RES_FOOTER      = Join-Path $res 'logo_footer.png'
+    RES_LOGO        = Join-Path $res 'logo.png'
 }
 $cscArgs = @(
     '/target:winexe', "/out:$installerExe",

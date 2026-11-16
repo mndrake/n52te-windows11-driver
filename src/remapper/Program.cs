@@ -101,11 +101,48 @@ internal static class Program
 
 	private static DateTime iniTime = DateTime.MinValue;
 
-	private static Dictionary<int, Mapping> mapByVk = new Dictionary<int, Mapping>();
+	// Button id (B01..B14, BESP, BALT, BUP.., BWHEEL) by learned scancode ([Origen]) or by
+	// the factory virtual key in SRC (buttons that weren't learned).
+	private static Dictionary<int, string> idBySc = new Dictionary<int, string>();
 
-	private static Dictionary<int, Mapping> mapBySc = new Dictionary<int, Mapping>();
+	private static Dictionary<int, string> idByVk = new Dictionary<int, string>();
 
-	private static Dictionary<int, bool> srcDown = new Dictionary<int, bool>();
+	// One mapping table per keymap, like the original Belkin software:
+	// 0 = Blue ([Botones], the default), 1 = Red ([Botones.Red]), 2 = Green ([Botones.Green]).
+	private static readonly string[] LAYER_SECTION = new string[3] { "Botones", "Botones.Red", "Botones.Green" };
+
+	private static readonly string[] LAYER_NAME = new string[3] { "Blue", "Red", "Green" };
+
+	private static Dictionary<string, Mapping>[] layers = new Dictionary<string, Mapping>[3]
+	{
+		new Dictionary<string, Mapping>(),
+		new Dictionary<string, Mapping>(),
+		new Dictionary<string, Mapping>()
+	};
+
+	private static volatile int layer = 0;
+
+	// Keymap to return to when a "hold" keymap button is released.
+	private static int holdReturn = -1;
+
+	private static string keymapFile;
+
+	// The mapping chosen when each button went down, so its release is handled the same way
+	// even if the keymap changed while it was held (no stuck keys).
+	private static Dictionary<string, Mapping> downMap = new Dictionary<string, Mapping>();
+
+	private static Dictionary<string, bool> srcDown = new Dictionary<string, bool>();
+
+	private static Predicate predMouse;
+
+	private static volatile bool learnSwallowMouse = false;
+
+	// Learn/Identify code the editor recognizes as the wheel click (not a real scancode).
+	private const uint WHEEL_CLICK_CODE = 0x1004u;
+
+	private const ushort MOUSE_MIDDLE_DOWN = 0x10;
+
+	private const ushort MOUSE_MIDDLE_UP = 0x20;
 
 	private static Dictionary<int, bool> n52teCache = new Dictionary<int, bool>();
 
@@ -228,7 +265,9 @@ internal static class Program
 		{ "BUP", 38 },
 		{ "BDOWN", 40 },
 		{ "BLEFT", 37 },
-		{ "BRIGHT", 39 }
+		{ "BRIGHT", 39 },
+		// Scroll-wheel click: arrives from the n52te's mouse interface as a middle click.
+		{ "BWHEEL", 4 }
 	};
 
 	[DllImport("interception.dll")]
@@ -255,6 +294,9 @@ internal static class Program
 	[DllImport("interception.dll")]
 	private static extern int interception_is_keyboard(int device);
 
+	[DllImport("interception.dll")]
+	private static extern int interception_is_mouse(int device);
+
 	[DllImport("user32.dll")]
 	private static extern uint SendInput(uint n, INPUT[] inputs, int size);
 
@@ -270,8 +312,9 @@ internal static class Program
 	[DllImport("user32.dll", CharSet = CharSet.Unicode)]
 	private static extern int GetWindowText(IntPtr h, StringBuilder sb, int max);
 
-	private static void Main()
+	private static void Main(string[] args)
 	{
+		verbose = Array.Exists(args, (string a) => string.Equals(a, "/verbose", StringComparison.OrdinalIgnoreCase));
 		Console.OutputEncoding = Encoding.UTF8;
 		Console.WriteLine("==========================================================");
 		Console.WriteLine(" n52te REMAPPER (Interception) - per-device separation");
@@ -288,6 +331,7 @@ internal static class Program
 		learnReq = Path.Combine(cfgDir, "aprender.req");
 		learnRes = Path.Combine(cfgDir, "aprender.res");
 		kbdList = Path.Combine(cfgDir, "teclados.txt");
+		keymapFile = Path.Combine(cfgDir, "keymap.txt");
 		try
 		{
 			File.Delete(learnReq);
@@ -317,6 +361,8 @@ internal static class Program
 		ListKeyboards(true);
 		predKeep = interception_is_keyboard;
 		interception_set_filter(ctx, predKeep, ushort.MaxValue);
+		SetMouseFilter();
+		SetLayer(0);
 		Console.CancelKeyPress += (object s, ConsoleCancelEventArgs e) =>
 		{
 			e.Cancel = true;
@@ -339,6 +385,11 @@ internal static class Program
 			int num = interception_wait(ctx);
 			if (num <= 0 || interception_receive(ctx, num, array, 1u) <= 0)
 			{
+				continue;
+			}
+			if (interception_is_mouse(num) != 0)
+			{
+				HandleMouse(num, array);
 				continue;
 			}
 			ushort num2 = (ushort)(array[0] | (array[1] << 8));
@@ -367,35 +418,202 @@ internal static class Program
 				interception_send(ctx, num, array, 1u);
 				continue;
 			}
-			Mapping value;
-			int srcVk;
-			if (mapBySc.TryGetValue((int)num4, out value))
+			string id = ButtonId(num4, num2);
+			Mapping value = (id == null) ? null : PickMapping(id, flag);
+			Trace(id, num4, flag, value);
+			if (value == null)
 			{
-				srcVk = (int)(0x10000 | num4);
+				interception_send(ctx, num, array, 1u);
+				continue;
 			}
-			else
-			{
-				uint num5 = MapVirtualKey(num4, 3u);
-				if (num5 == 0)
-				{
-					num5 = MapVirtualKey(num2, 1u);
-				}
-				if (num5 == 0 || !mapByVk.TryGetValue((int)num5, out value))
-				{
-					interception_send(ctx, num, array, 1u);
-					continue;
-				}
-				srcVk = (int)num5;
-			}
-			Execute(srcVk, value, flag);
+			Execute(id, value, flag);
 		}
 	}
 
-	private static void Execute(int srcVk, Mapping map, bool isUp)
+	// "/verbose" on the command line logs every n52te button event (for troubleshooting).
+	private static bool verbose = false;
+
+	private static void Trace(string id, uint sc, bool isUp, Mapping map)
+	{
+		if (verbose)
+		{
+			Console.WriteLine("[EVENT] " + (id ?? "?") + " sc=" + sc.ToString("X2") + (isUp ? " up  " : " down") + " keymap=" + LAYER_NAME[layer] + " -> " + ((map == null) ? "pass through" : (map.Type + "|" + map.Value)));
+		}
+	}
+
+	// Only the n52te's mouse interface is filtered, and only for middle-button events
+	// (the wheel click): the user's own mouse and all mouse movement are never captured.
+	private static void SetMouseFilter()
+	{
+		predMouse = (int device) => (interception_is_mouse(device) != 0 && IsN52te(device)) ? 1 : 0;
+		interception_set_filter(ctx, predMouse, MOUSE_MIDDLE_DOWN | MOUSE_MIDDLE_UP);
+	}
+
+	private static void HandleMouse(int device, byte[] stroke)
+	{
+		int state = stroke[0] | (stroke[1] << 8);
+		bool down = (state & MOUSE_MIDDLE_DOWN) != 0;
+		bool up = (state & MOUSE_MIDDLE_UP) != 0;
+		if ((!down && !up) || !IsN52te(device))
+		{
+			interception_send(ctx, device, stroke, 1u);
+			return;
+		}
+		if (learnSwallowMouse && up)
+		{
+			learnSwallowMouse = false;
+			return;
+		}
+		if (learnArmed && down && EditorForeground())
+		{
+			learnArmed = false;
+			learnSwallowMouse = true;
+			WriteLearnResult(HardwareId(device), WHEEL_CLICK_CODE);
+			return;
+		}
+		if (EditorForeground())
+		{
+			interception_send(ctx, device, stroke, 1u);
+			return;
+		}
+		Mapping map = PickMapping("BWHEEL", up);
+		Trace("BWHEEL", WHEEL_CLICK_CODE, up, map);
+		if (map == null)
+		{
+			interception_send(ctx, device, stroke, 1u);
+			return;
+		}
+		Execute("BWHEEL", map, up);
+	}
+
+	private static string ButtonId(uint sc, ushort rawCode)
+	{
+		string id;
+		if (idBySc.TryGetValue((int)sc, out id))
+		{
+			return id;
+		}
+		uint vk = MapVirtualKey(sc, 3u);
+		if (vk == 0)
+		{
+			vk = MapVirtualKey(rawCode, 1u);
+		}
+		if (vk != 0 && idByVk.TryGetValue((int)vk, out id))
+		{
+			return id;
+		}
+		return null;
+	}
+
+	// Mapping for a button press/release; null means "pass the original key through".
+	private static Mapping PickMapping(string id, bool isUp)
+	{
+		Mapping map;
+		if (!isUp)
+		{
+			if (!downMap.TryGetValue(id, out map))
+			{
+				map = CurrentMapping(id);
+				downMap[id] = map;
+			}
+			return map;
+		}
+		if (downMap.TryGetValue(id, out map))
+		{
+			downMap.Remove(id);
+			return map;
+		}
+		return CurrentMapping(id);
+	}
+
+	private static Mapping CurrentMapping(string id)
+	{
+		Dictionary<string, Mapping>[] l = layers;
+		Mapping map;
+		// A keymap-switch button set in Blue works in every keymap, so you can never get stuck.
+		if (l[0].TryGetValue(id, out map) && map.Type == "keymap")
+		{
+			return map;
+		}
+		l[layer].TryGetValue(id, out map);
+		return map;
+	}
+
+	// "blue", "red", "green" (toggle), "<color> hold" (only while held), or "cycle".
+	// Returns 0..2 for a color, -1 for cycle, -2 if invalid.
+	private static int KeymapTarget(string value, out bool hold)
+	{
+		string v = value.Trim().ToLowerInvariant();
+		hold = v.EndsWith(" hold");
+		if (hold)
+		{
+			v = v.Substring(0, v.Length - 5).Trim();
+		}
+		if (v == "cycle")
+		{
+			return hold ? -2 : -1;
+		}
+		for (int i = 0; i < 3; i++)
+		{
+			if (v == LAYER_NAME[i].ToLowerInvariant())
+			{
+				return i;
+			}
+		}
+		return -2;
+	}
+
+	private static void SetLayer(int l)
+	{
+		layer = l;
+		Console.WriteLine("[KEYMAP] " + LAYER_NAME[l]);
+		try
+		{
+			Console.Title = "n52te Remapper - " + LAYER_NAME[l] + " keymap";
+		}
+		catch
+		{
+		}
+		try
+		{
+			File.WriteAllText(keymapFile, LAYER_NAME[l], new UTF8Encoding(false));
+		}
+		catch
+		{
+		}
+	}
+
+	private static void Execute(string id, Mapping map, bool isUp)
 	{
 		bool value;
-		srcDown.TryGetValue(srcVk, out value);
-		srcDown[srcVk] = !isUp;
+		srcDown.TryGetValue(id, out value);
+		srcDown[id] = !isUp;
+		if (map.Type == "keymap")
+		{
+			bool hold;
+			int target = KeymapTarget(map.Value, out hold);
+			if (!isUp && !value)
+			{
+				if (target == -1)
+				{
+					SetLayer((layer + 1) % 3);
+				}
+				else if (target >= 0)
+				{
+					if (hold)
+					{
+						holdReturn = layer;
+					}
+					SetLayer(target);
+				}
+			}
+			else if (isUp && hold && holdReturn >= 0)
+			{
+				SetLayer(holdReturn);
+				holdReturn = -1;
+			}
+			return;
+		}
 		if (map.Type == "key")
 		{
 			if (map.MDown != 0)
@@ -638,9 +856,18 @@ internal static class Program
 				stringBuilder.AppendLine((flag2 ? "[n52te] " : "[other] ") + "dev" + i + "  " + text);
 			}
 		}
+		// The n52te's mouse interface (scroll wheel + wheel click). Other mice are not listed.
+		for (int j = 11; j <= 20; j++)
+		{
+			string text2 = HardwareId(j);
+			if (!string.IsNullOrEmpty(text2) && MatchesN52te(text2))
+			{
+				stringBuilder.AppendLine("[n52te] dev" + j + "  mouse (wheel click)  " + text2);
+			}
+		}
 		if (print)
 		{
-			Console.WriteLine("Keyboards (Interception id 1..10):");
+			Console.WriteLine("Keyboards (Interception id 1..10) and the n52te's wheel (11..20):");
 			Console.Write((stringBuilder.Length > 0) ? stringBuilder.ToString() : "  (none)\n");
 			Console.WriteLine("n52te ids: " + string.Join(", ", deviceIds));
 			Console.WriteLine(flag ? "[OK] n52te found. Only ITS keys are remapped; all other keyboards are left untouched." : "[WARNING] Can't see the n52te right now. If it's connected, use 'Learn keys' in the editor.");
@@ -706,7 +933,12 @@ internal static class Program
 
 	private static void LoadConfig(bool first)
 	{
-		Dictionary<string, Mapping> dictionary = new Dictionary<string, Mapping>();
+		Dictionary<string, Mapping>[] maps = new Dictionary<string, Mapping>[3]
+		{
+			new Dictionary<string, Mapping>(),
+			new Dictionary<string, Mapping>(),
+			new Dictionary<string, Mapping>()
+		};
 		Dictionary<string, int> dictionary2 = new Dictionary<string, int>();
 		List<string> list = new List<string>();
 		int result;
@@ -750,16 +982,27 @@ internal static class Program
 							dictionary2[text4] = result;
 						}
 					}
-					else if (!(text != "Botones") && SRC.ContainsKey(text4))
+					else if (Array.IndexOf(LAYER_SECTION, text) >= 0 && SRC.ContainsKey(text4))
 					{
 						int num2 = text5.IndexOf('|');
 						Mapping mapping = new Mapping();
 						mapping.Type = ((num2 >= 0) ? text5.Substring(0, num2) : text5);
 						mapping.Value = ((num2 >= 0) ? text5.Substring(num2 + 1) : "");
-						if (!(mapping.Type == "none") && !(mapping.Value == "") && (!(mapping.Type == "key") || ResolveKey(mapping)))
+						if (mapping.Type == "none" || mapping.Value == "")
 						{
-							dictionary[text4] = mapping;
+							continue;
 						}
+						if (mapping.Type == "key" && !ResolveKey(mapping))
+						{
+							continue;
+						}
+						bool hold;
+						if (mapping.Type == "keymap" && KeymapTarget(mapping.Value, out hold) == -2)
+						{
+							Console.WriteLine("[ERR config] unknown keymap action: " + mapping.Value);
+							continue;
+						}
+						maps[Array.IndexOf(LAYER_SECTION, text)][text4] = mapping;
 					}
 				}
 			}
@@ -768,30 +1011,48 @@ internal static class Program
 		{
 			Console.WriteLine("[ERR config] " + ex.Message);
 		}
-		Dictionary<int, Mapping> dictionary3 = new Dictionary<int, Mapping>();
-		Dictionary<int, Mapping> dictionary4 = new Dictionary<int, Mapping>();
-		foreach (KeyValuePair<string, Mapping> item in dictionary)
+		Dictionary<int, string> bySc = new Dictionary<int, string>();
+		Dictionary<int, string> byVk = new Dictionary<int, string>();
+		foreach (KeyValuePair<string, int> item in SRC)
 		{
-			if (dictionary2.TryGetValue(item.Key, out result))
+			if (item.Key != "BWHEEL" && dictionary2.TryGetValue(item.Key, out result))
 			{
-				dictionary4[result] = item.Value;
+				bySc[result] = item.Key;
 			}
-			else
+			else if (item.Key != "BWHEEL")
 			{
-				dictionary3[SRC[item.Key]] = item.Value;
+				byVk[item.Value] = item.Key;
 			}
 		}
-		mapByVk = dictionary3;
-		mapBySc = dictionary4;
+		idBySc = bySc;
+		idByVk = byVk;
+		layers = maps;
+		bool anySwitch = false;
+		foreach (Dictionary<string, Mapping> m in maps)
+		{
+			foreach (Mapping v in m.Values)
+			{
+				if (v.Type == "keymap")
+				{
+					anySwitch = true;
+				}
+			}
+		}
+		if (!anySwitch && layer != 0 && ctx != IntPtr.Zero)
+		{
+			// No way left to switch keymaps: go back to Blue instead of staying stuck.
+			SetLayer(0);
+		}
 		if (list.Count > 0)
 		{
 			deviceIds = list.ToArray();
 		}
 		n52teCache = new Dictionary<int, bool>();
-		Console.WriteLine("[CONFIG] " + dictionary.Count + " buttons remapped (" + dictionary2.Count + " with a learned key) " + (first ? "" : "(reloaded)"));
+		Console.WriteLine("[CONFIG] buttons remapped: Blue " + maps[0].Count + ", Red " + maps[1].Count + ", Green " + maps[2].Count + " (" + dictionary2.Count + " with a learned key) " + (first ? "" : "(reloaded)"));
 		if (!first && ctx != IntPtr.Zero)
 		{
 			ListKeyboards(false);
+			SetMouseFilter();
 		}
 	}
 

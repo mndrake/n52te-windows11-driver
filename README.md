@@ -32,7 +32,7 @@ Get-FileHash .\Install-n52te.exe -Algorithm SHA256
 The result must match this **exactly** (also published in [`Install-n52te.exe.sha256`](Install-n52te.exe.sha256)):
 
 ```
-E3C8C974E51910A21CC8DBC3ED52F563C05961409A06FFFC68F2CC0BB9F9FF59
+8F46EFFC5D02CC49DF18BD90424FC2B37496F7115F7995BA66E5EA20277F678F
 ```
 
 If it doesn't match, **don't run it**. You can also upload the file to [VirusTotal](https://www.virustotal.com/) and scan it yourself before running it.
@@ -46,8 +46,9 @@ The **Belkin n52te** (and its twin, the **Razer Nostromo n52te**) is a legendary
 ## ✨ What's included
 
 - **🎮 True per-device separation**: only the n52te's keys are remapped. Your normal keyboard keeps typing normally — no lag, no interference. (Built on the [Interception](https://github.com/oblitum/Interception) driver, compatible with Windows 11 Memory Integrity — **no need to disable any security feature**.)
-- **🖱️ Visual editor**: the 14 buttons + thumb pad + D-pad drawn with the device's real shape. Click a button, choose what it does, save — applied instantly.
-- **⌨️ Each button can be**: a key (including F13–F24, which conflict with nothing), a combo/macro (`Ctrl+C`, `Alt+Tab`…), typed text, or launching a program or website.
+- **🖱️ Visual editor**: the 14 buttons + thumb pad + D-pad + scroll-wheel click drawn with the device's real shape. Click a button, choose what it does, save — applied instantly.
+- **⌨️ Each button can be**: a key (including F13–F24, which conflict with nothing), a combo/macro (`Ctrl+C`, `Alt+Tab`…), typed text, launching a program or website, or a keymap switch.
+- **🎨 Blue / Red / Green keymaps**: like the original Belkin software, every button can do something different in each of three keymaps. Give any button the **Switch keymap** action: cycle through all three, or jump to one color (toggle, or only while held). The keypad's own lights can't change color without Belkin's old driver, so the active keymap is shown in the editor and in the remapper window's title instead.
 - **🔍 Identify mode**: press a physical button and it gets selected on screen.
 - **🎓 Learn keys**: if your keypad still has a custom profile stored on it (red/green/blue mode, or any non-default layout), press **Learn keys** and then each button once. The editor learns which key every button sends and recognizes your unit, even if it reports a different USB ID.
 - **🚀 Optional start with Windows**, running in the background.
@@ -62,6 +63,12 @@ Experimental: the remapper filters by Belkin's USB vendor ID (`VID_050D`), not o
 1. **Test outside the editor**: while the editor window is focused, the n52te types raw on purpose. Click another window (e.g. Notepad) first.
 2. Look at the line under the keypad drawing. If it says the remapper **does not recognize** your n52te, press **Learn keys** and press each button when asked. This also covers keypads that still carry an old onboard profile (red/green/blue modes).
 
+## 🚧 Known limitations
+
+- **Keypad lights and onboard memory**: the n52te stores a profile in its own memory, including which keymap it starts in (and so its light color). Only Belkin's original driver can change that memory, using an unpublished protocol. So the light shows the keypad's stored keymap, not this app's Blue/Red/Green keymap: use the editor ("Remapper keymap") or the remapper window title to see that one. If the original software left some controls unassigned in the stored profile (for example a D-pad direction or the wheel), they send nothing until the profile is reset with the original Belkin software.
+- **Scrolling the wheel** isn't remappable: it works as a normal mouse wheel. Its click is remappable.
+- **Buttons that send nothing**: if a control (for example a D-pad direction) doesn't react in Identify or Learn keys, the keypad isn't sending anything Windows can see, so no software can remap it. On one test unit the D-pad Left and wheel scrolling were silent at the USB HID level — try the keypad on another PC to rule out a hardware fault.
+
 ## 🧩 Compatibility
 
 | | |
@@ -75,7 +82,9 @@ Experimental: the remapper filters by Belkin's USB vendor ID (`VID_050D`), not o
 
 - The n52te enumerates as a standard HID keyboard. To remap **only** its keys without touching your physical keyboard, input must be filtered at driver level: this project uses the **Interception** kernel driver (signed, HVCI-compatible).
 - A small background service (`n52te_interception.exe`) reads every keystroke, checks whether it comes from the n52te (`VID_050D`) and, if so, emits the configured action; any other keyboard passes through untouched.
-- The editor (`n52te Editor.exe`) writes the configuration to `%ProgramData%\n52te\n52te_config.ini`, which the remapper hot-reloads automatically (~1 second). Configs from earlier (Spanish) versions keep working unchanged.
+- The scroll-wheel click arrives from the n52te's separate mouse interface. The remapper filters only that interface, and only its middle-button events, so your own mouse and all mouse movement are never captured.
+- The editor (`n52te Editor.exe`) writes the configuration to `%ProgramData%\n52te\n52te_config.ini`, which the remapper hot-reloads automatically (~1 second). The Blue keymap is the `[Botones]` section, Red and Green are `[Botones.Red]` and `[Botones.Green]`; a keymap switch is stored as `keymap|cycle`, `keymap|red` or `keymap|red hold`. Configs from earlier (Spanish) versions keep working unchanged and load as the Blue keymap.
+- The remapper writes the active keymap to `%ProgramData%\n52te\keymap.txt`, which the editor displays.
 - Deploying to several workstations: install once per machine (admin + one restart) and copy the same `.ini` everywhere. No cloud, no accounts, no Synapse.
 
 Detailed install guide: **[INSTALL.md](INSTALL.md)**.

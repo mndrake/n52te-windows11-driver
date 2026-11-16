@@ -28,11 +28,20 @@ internal static class Installer
 
 	private static bool needReboot = false;
 
-	private static readonly string[,] PAYLOAD = new string[7, 2]
+	// The editor ships as the standard AutoHotkey v2 interpreter plus its readable script,
+	// not as a compiled exe: compiled AutoHotkey programs trip antivirus heuristics
+	// (Microsoft Defender flagged one build as Program:Win32/Contebrew.A!ml).
+	private const string AHK_EXE = "AutoHotkey64.exe";
+
+	private const string EDITOR_SCRIPT = "n52te Editor.ahk";
+
+	private static readonly string[,] PAYLOAD = new string[9, 2]
 	{
 		{ "RES_REMAPPER", "n52te_interception.exe" },
 		{ "RES_DLL", "interception.dll" },
-		{ "RES_EDITOR", "n52te Editor.exe" },
+		{ "RES_AHK", AHK_EXE },
+		{ "RES_AHK_LICENSE", "AutoHotkey license.txt" },
+		{ "RES_EDITOR", EDITOR_SCRIPT },
 		{ "RES_DRIVER", "install-interception.exe" },
 		{ "RES_ICO", "infomalena.ico" },
 		{ "RES_FAVICON", "favicon.png" },
@@ -231,6 +240,7 @@ internal static class Installer
 			Directory.CreateDirectory("C:\\Program Files\\n52te");
 			Log("   C:\\Program Files\\n52te");
 			Log("== 2/6 Extracting files ==");
+			StopRunningEditors();
 			for (int i = 0; i < PAYLOAD.GetLength(0); i++)
 			{
 				string outPath = Path.Combine("C:\\Program Files\\n52te", PAYLOAD[i, 1]);
@@ -253,7 +263,9 @@ internal static class Installer
 			}
 			Log("== 5/6 Creating configuration and shortcuts ==");
 			CreateDefaultConfig();
-			string text = Path.Combine("C:\\Program Files\\n52te", "n52te Editor.exe");
+			// The editor shortcut runs: AutoHotkey64.exe "C:\Program Files\n52te\n52te Editor.ahk"
+			string text = Path.Combine("C:\\Program Files\\n52te", AHK_EXE);
+			string editorArgs = "\"" + Path.Combine("C:\\Program Files\\n52te", EDITOR_SCRIPT) + "\"";
 			string icon = Path.Combine("C:\\Program Files\\n52te", "infomalena.ico");
 			string text2 = Path.Combine("C:\\Program Files\\n52te", "n52te_interception.exe");
 			string text3 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "n52te");
@@ -263,8 +275,8 @@ internal static class Installer
 			DeleteOldShortcut(Path.Combine(text3, "Editor n52te.lnk"));
 			DeleteOldShortcut(Path.Combine(text3, "Remapeador n52te.lnk"));
 			DeleteOldShortcut(Path.Combine(folderPath, "Editor n52te.lnk"));
-			MakeShortcut(Path.Combine(text3, "n52te Editor.lnk"), text, "", "C:\\Program Files\\n52te", text, "n52te button editor");
-			MakeShortcut(Path.Combine(folderPath, "n52te Editor.lnk"), text, "", "C:\\Program Files\\n52te", text, "n52te button editor");
+			MakeShortcut(Path.Combine(text3, "n52te Editor.lnk"), text, editorArgs, "C:\\Program Files\\n52te", icon, "n52te button editor");
+			MakeShortcut(Path.Combine(folderPath, "n52te Editor.lnk"), text, editorArgs, "C:\\Program Files\\n52te", icon, "n52te button editor");
 			MakeShortcut(Path.Combine(text3, "n52te Remapper.lnk"), text2, "", "C:\\Program Files\\n52te", icon, "n52te remapper (runs in the background)");
 			Log("   shortcuts created on the Desktop and in the Start menu");
 			Log("== 6/6 Checking the driver ==");
@@ -274,11 +286,10 @@ internal static class Installer
 				Log("   Starting the remapper...");
 				try
 				{
-					ProcessStartInfo processStartInfo = new ProcessStartInfo(text2);
-					processStartInfo.WorkingDirectory = "C:\\Program Files\\n52te";
-					processStartInfo.UseShellExecute = false;
-					ProcessStartInfo startInfo = processStartInfo;
-					Process.Start(startInfo);
+					// Start it through Explorer so it runs as the normal user, not as admin like
+					// this installer. Users can edit its config, and the config can launch
+					// programs ("run" actions), so the remapper must never run elevated.
+					Process.Start("explorer.exe", "\"" + text2 + "\"");
 				}
 				catch (Exception ex)
 				{
@@ -339,13 +350,48 @@ internal static class Installer
 					{
 						throw;
 					}
-					TryStop(Path.GetFileNameWithoutExtension(outPath));
+					TryStopPath(outPath);
 					Thread.Sleep(600);
 					stream.Position = 0L;
 				}
 				num++;
 			}
 		}
+	}
+
+	// Stops only processes running this exact file, so an AutoHotkey64.exe the user runs
+	// elsewhere (their own scripts) is never touched.
+	private static void TryStopPath(string fullPath)
+	{
+		try
+		{
+			foreach (Process process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(fullPath)))
+			{
+				try
+				{
+					if (string.Equals(process.MainModule.FileName, fullPath, StringComparison.OrdinalIgnoreCase))
+					{
+						process.Kill();
+						process.WaitForExit(2000);
+					}
+				}
+				catch
+				{
+				}
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	// Closes the editor before its files are replaced: this version's (AutoHotkey64.exe in
+	// the install folder) and the compiled editors of earlier versions.
+	private static void StopRunningEditors()
+	{
+		TryStopPath(Path.Combine("C:\\Program Files\\n52te", AHK_EXE));
+		TryStop("n52te Editor");
+		TryStop("Editor n52te");
 	}
 
 	private static void TryStop(string procName)
@@ -398,6 +444,12 @@ internal static class Installer
 	{
 		string text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "n52te");
 		Directory.CreateDirectory(text);
+		// The editor and the remapper run as the normal (non-admin) user and must be able
+		// to write here: n52te_config.ini, teclados.txt and aprender.req/.res. Files this
+		// installer creates as admin are otherwise read-only for them ("Access is denied").
+		// /T also fixes files left by earlier versions. S-1-5-32-545 = BUILTIN\Users.
+		int num = Run("icacls", "\"" + text + "\" /grant *S-1-5-32-545:(OI)(CI)M /T /Q");
+		Log((num == 0) ? "   gave users write access to " + text : "   (couldn't set permissions on " + text + ": icacls exit code " + num + ")");
 		string text2 = Path.Combine(text, "n52te_config.ini");
 		if (File.Exists(text2))
 		{
@@ -416,9 +468,9 @@ internal static class Installer
 
 	private static void CleanStale()
 	{
-		// "Editor n52te.exe" is the editor's name in v1.1.0 and earlier (Spanish builds).
-		TryStop("Editor n52te");
-		string[] array = new string[5] { "AutoHotkey64.exe", "Editor n52te.ahk", "Editor n52te.exe", "n52.ico", "n52te_config.ini" };
+		// Compiled editors of earlier versions: "Editor n52te.exe" (v1.1.0 and earlier, Spanish)
+		// and "n52te Editor.exe" (first English builds). AutoHotkey64.exe is current again.
+		string[] array = new string[5] { "Editor n52te.ahk", "Editor n52te.exe", "n52te Editor.exe", "n52.ico", "n52te_config.ini" };
 		string[] array2 = array;
 		foreach (string text in array2)
 		{

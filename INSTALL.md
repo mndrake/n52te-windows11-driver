@@ -43,6 +43,14 @@ The **first time** the driver is installed, Windows needs a **restart** to activ
 4. **To test it, click OUTSIDE the editor** (while the editor is in front, the n52te types raw keys) and press the button on the n52te.
 5. Check **"Start the remapper with Windows"** if you want it to always work without opening anything.
 
+### Blue, Red and Green keymaps
+
+Each button can do something different in each of three keymaps, like the original Belkin software:
+
+1. Pick a button to switch keymaps (for example the round thumb button), choose **Switch keymap (Blue / Red / Green)**, then pick **Cycle keymaps**, a color (stays until you switch again) or a color *only while held*. A switch button works the same in all three keymaps.
+2. Click the **Blue**, **Red** or **Green** tab above the keypad drawing and assign the other buttons for that keymap. Buttons with no action in Red or Green send their normal key.
+3. The keypad's light doesn't follow these keymaps: it shows the keymap stored in the keypad's own memory, which only Belkin's old driver can change. The editor shows the **Remapper keymap** at the top left, and the remapper window's title shows it too.
+
 > 💡 Your normal keyboard is **never affected**: only the n52te's keys are remapped.
 
 ## ⬆️ Upgrading from an earlier (Spanish) version
@@ -65,7 +73,7 @@ Just run the new installer. It keeps your existing button configuration, replace
 |---|---|
 | The editor says *"the remapper isn't running"* | Open the **n52te Remapper** shortcut, or check *"Start the remapper with Windows"* and restart. |
 | I assigned a key and nothing changes | Remember to click **outside** the editor before testing the button. If the text under the drawing says the remapper **does not recognize** your n52te, or your keypad sends other keys (a stored red/green/blue profile), click **Learn keys** in the editor. |
-| *"Access denied"* when saving | This shouldn't happen (the config is stored in `%ProgramData%`). If it does, run the editor as administrator once. |
+| *"Access is denied"* when saving | Versions up to 1.1.0 created the config folder as admin-only. Run the current installer again: it gives normal users write access to `C:\ProgramData\n52te`. |
 | The n52te doesn't show up | Check that it's plugged in and that the driver loaded: restart after installing. |
 | The keyboard acted strangely during install | Restart the computer; everything starts clean. |
 
