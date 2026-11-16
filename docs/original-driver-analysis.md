@@ -178,7 +178,9 @@ action, type in the first macro byte"). Then there are the special codes:
   `0xDE`/`0xDF` Red**,
 * `0xE8`–`0xFF` media / WWW keys.
 
-Keymap order 0/1/2 = Blue/Green/Red follows the editor's menus (*unverified on hardware*).
+Keymap order 0/1/2 = Blue/Green/Red follows the editor's menus, but **on the hardware the firmware
+numbers are 0 = Blue, 1 = Red, 2 = Green** (0 and 1 verified, 2 inferred; see "Verified on
+hardware" below).
 
 ## 5. What this project did in v1.1.0 (decompiled from `Instalar-n52te.exe`)
 
@@ -282,6 +284,25 @@ sends `0xC4 + n` (dropped by `kbdhid`) or no report at all. A raw USB capture (`
 Linux, or USBPcap) would confirm it. Most of the captures above were taken while the old filter
 could still have been attached to the keypad's earlier device node, so repeating the D-pad left and
 wheel tests on the current, filter-free node is worthwhile.
+
+### Verified on hardware: switching the onboard keymap
+
+With [`research/n52te_keymap.py`](../research/n52te_keymap.py), run as root in an Alpine Linux
+VM (VirtualBox, USB passthrough of `050D:0200`, `usbhid` detached during the requests), on the
+same keypad:
+
+| Request | Result |
+|---|---|
+| `GET_REPORT wValue=6` (firmware), interface 0 | `00 08 01 04 65 00 64 0c`, checksum valid |
+| `GET_REPORT wValue=5` (active keymap) | `00 08 01 03 00 01 01 0a`: keymap **1** while the LED was **red** |
+| `SET_REPORT wValue=4`, data `00 08 00 03 00 00 00 0b` | accepted; read-back reports keymap **0**, LED turned **blue** |
+| Unplug and replug | LED still **blue**: the selected keymap is kept by the keypad |
+
+In the Blue keymap the inputs that were silent in Red came alive with the owner's custom
+layout (D-pad left sent `A`, wheel up sent `Tab`), confirming that the stored profile, not the
+hardware, caused the silence. Wheel down still sent nothing, so that input is probably
+unassigned or a PC-side action in this profile too. Replies carry `01` in byte 2 (requests
+have `00`).
 
 ## 6. Ways to fix it
 

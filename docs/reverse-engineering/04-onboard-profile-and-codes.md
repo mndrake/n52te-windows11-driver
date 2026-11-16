@@ -6,9 +6,13 @@ itself. The editor keeps the same data in each profile `.ini`, and
 
 ## The 27 inputs
 
-The order is the record order in the profile and the upload image, and the `n` in the driver's
-`0xC4 + n` events. It was established from the factory profile, the manual's default layout and
-the editor's per-input marker tables, whose values follow the physical key matrix.
+The order is the record order in the profile `.ini`, and the `n` in the driver's `0xC4 + n`
+events. It was established from the factory profile, the manual's default layout and the
+editor's per-input marker tables, whose values follow the physical key matrix.
+
+**The upload image (and the keypad's memory) uses a different order:** each input sits at
+slot = its macro marker − `0xA0` (input 2 → slot 4, input 23 → slot 7, …). The full table and
+how it was verified are in [03](03-usb-protocol.md#keymap-image).
 
 | n | Physical input | Factory action | Macro marker | PC-action marker |
 |---|---|---|---|---|
