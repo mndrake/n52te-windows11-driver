@@ -22,7 +22,8 @@ the stored profile leaves silent, and can't change the keypad's keymap or LED (s
 | Upload (`SEND_SETTING` + `GET_RESULT`), unchanged keymap | works on hardware (round trip) | `research/n52te_upload.py --roundtrip` |
 | Upload of a changed keymap (one key code) | works on hardware, keypad runs it with no PC software | `research/n52te_upload.py --set` |
 | Upload of macros, mouse codes, keymap-switch codes | not yet tested | – |
-| **Windows 11 transport** (no VM) | **not yet built** | – |
+| Windows 11 transport (UsbDk, no VM): info, read, round-trip write, select keymap | works on hardware (Memory Integrity off) | `src/configtool/N52teConfig.cs` (`n52te-config.exe`) |
+| UsbDk with Memory Integrity **on** | not yet tested | – |
 
 ## Components
 
@@ -55,13 +56,43 @@ the stored profile leaves silent, and can't change the keypad's keymap or LED (s
    "Write to keypad". A keymap-switch action is written to all three keymaps, like the original
    editor. The remapper stays optional for things only a PC can do.
 
+## Using `n52te-config` on Windows
+
+Requires [UsbDk 1.0.22 x64](https://github.com/daynix/UsbDk/releases) (signed by Red Hat). Build
+with the C# compiler that ships with Windows:
+
+```
+csc /platform:x64 /out:n52te-config.exe src\configtool\N52teConfig.cs
+```
+
+| Command | What it does |
+|---|---|
+| `n52te-config info` | firmware version and active keymap (read-only) |
+| `n52te-config select blue\|red\|green` | make that keymap active; the LED follows and it stays after unplugging |
+| `n52te-config read [0\|1\|2\|all] [DIR]` | read keymaps back, decode them, save `keymapN.bin` (read-only) |
+| `n52te-config roundtrip 0\|1\|2` | write a keymap back unchanged and verify it |
+| `n52te-config set KM INPUT CODE --yes` | change one input to a firmware code (hex), verify |
+| `n52te-config write FILE KM --yes` | write a saved image (e.g. a backup) as keymap KM, verify |
+
+Every write first saves `keymapN-before-<time>.bin` in the current folder, checks each chunk's
+checksum, and reads the keymap back to verify. The keypad doesn't type while the tool runs;
+UsbDk hands it back to Windows when the tool exits.
+
+**Restart Windows after installing UsbDk.** Installing it attaches a filter to every USB device and
+restarts the USB stacks. On the test PC that also restarted the (USB) Bluetooth adapter twice,
+and the Bluetooth keyboard stopped reaching apps until a reboot. Using the tool afterwards
+(borrowing and returning the keypad) did not affect the Bluetooth keyboard.
+
 ## Test plan
 
 1. ~~Round trip: upload the Blue keymap exactly as read back (with the upload header), read it
    back, compare.~~ Done: body identical, header stored, keypad unchanged in use.
 2. ~~Change one key in Blue, upload, check it on the keypad, restore the backup.~~ Done: wheel down
    set to B typed `b` on Windows; restored to the original afterwards.
-3. Same two steps through the Windows transport.
+3. ~~Same steps through the Windows transport.~~ Done with `n52te-config` over UsbDk: `info`,
+   `read all` (identical to the VM read-back), `roundtrip blue` (verified) and `select red` /
+   `select blue` (LED followed).
+4. Not yet: writing macros, mouse codes and keymap-switch codes; UsbDk with Memory Integrity on.
 
 ## Open questions
 
