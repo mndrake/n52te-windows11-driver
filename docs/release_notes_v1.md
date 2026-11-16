@@ -1,13 +1,13 @@
-## n52te en Windows 11 — primera versión
+## n52te on Windows 11 — first release
 
-Instalador con un clic para el keypad **Belkin / Razer Nostromo n52te** en Windows 11 y Windows 10 (64-bit).
+One-click installer for the **Belkin / Razer Nostromo n52te** keypad on Windows 11 and Windows 10 (64-bit).
 
-### Descarga
-Baja **Instalar-n52te.exe** aquí abajo y ejecútalo (pedirá permisos de administrador). Si SmartScreen avisa: *Más información → Ejecutar de todas formas*.
+### Download
+Download **Install-n52te.exe** below and run it (it will ask for administrator rights). If SmartScreen warns you: *More info → Run anyway*.
 
-### Qué hace
-- **Separación real por dispositivo**: solo remapea el n52te, tu teclado normal queda intacto.
-- **Editor visual** con la forma real del dispositivo.
-- **Inicio con Windows** opcional.
+### What it does
+- **True per-device separation**: only the n52te is remapped; your normal keyboard is left untouched.
+- **Visual editor** with the device's real shape.
+- Optional **start with Windows**.
 
-Guía completa: [INSTALL.md](https://github.com/SuperporraMotor25/n52te-windows11-driver/blob/main/INSTALL.md)
+Full guide: [INSTALL.md](https://github.com/mndrake/n52te-windows11-driver/blob/main/INSTALL.md)

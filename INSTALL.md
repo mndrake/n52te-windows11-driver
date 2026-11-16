@@ -1,74 +1,86 @@
-# Guía de instalación — n52te en Windows 11
+# Installation guide — n52te on Windows 11
 
-Esta guía explica cómo instalar el software del **Belkin / Razer n52te** con el instalador `Instalar-n52te.exe`.
+This guide explains how to install the **Belkin / Razer n52te** software with the `Install-n52te.exe` installer.
 
-## 📋 Antes de empezar
+## 📋 Before you start
 
-- **Windows 11 o Windows 10 (64 bits).**
-- Necesitarás **permisos de administrador** (el instalador los pide solo).
-- Ten el **n52te conectado** por USB (no es imprescindible para instalar, pero sí para probarlo al final).
+- **Windows 11 or Windows 10 (64-bit).**
+- You'll need **administrator rights** (the installer asks for them on its own).
+- Have the **n52te plugged in** over USB (not required to install, but you'll need it to test at the end).
 
-## 🚀 Instalación paso a paso
+## 🚀 Step-by-step installation
 
-### 1. Descarga el instalador
-Desde la pestaña **[Releases](../../releases/latest)** del repositorio, descarga **`Instalar-n52te.exe`**.
+### 1. Download the installer
+From the repository's **[Releases](../../releases/latest)** tab, download **`Install-n52te.exe`**.
 
-### 2. Ejecútalo
-Haz doble clic en `Instalar-n52te.exe`.
+### 2. Run it
+Double-click `Install-n52te.exe`.
 
-### 3. Aviso de SmartScreen (normal)
-Como es software gratuito sin firma digital de pago, Windows puede mostrar **"Windows protegió tu PC"**:
+### 3. SmartScreen warning (normal)
+Because this is free software without a paid code-signing certificate, Windows may show **"Windows protected your PC"**:
 
-> Pulsa **Más información** → **Ejecutar de todas formas**.
+> Click **More info** → **Run anyway**.
 
-### 4. Acepta el control de cuentas (UAC)
-Windows pedirá permiso de administrador (hace falta para instalar el driver). Pulsa **Sí**.
+### 4. Accept User Account Control (UAC)
+Windows will ask for administrator permission (needed to install the driver). Click **Yes**.
 
-### 5. Pulsa "Instalar"
-En la ventana del instalador, pulsa **Instalar**. El proceso:
-1. Limpia restos de drivers antiguos de Belkin.
-2. Instala el driver **Interception**.
-3. Copia el editor y el remapeador a `C:\Program Files\n52te`.
-4. Crea accesos directos en el Escritorio y el menú Inicio.
-5. Deja el n52te listo.
+### 5. Click "Install"
+In the installer window, click **Install**. The installer:
+1. Removes leftovers of old Belkin drivers.
+2. Installs the **Interception** driver.
+3. Copies the editor and the remapper to `C:\Program Files\n52te`.
+4. Creates shortcuts on the Desktop and in the Start menu.
+5. Leaves the n52te ready to use.
 
-### 6. Reinicia si te lo pide
-La **primera vez** que se instala el driver, Windows necesita **reiniciar** para activarlo. Si el instalador te lo indica, pulsa **Reiniciar ahora** (o reinicia cuando quieras). Si el driver ya estaba activo, no hace falta reiniciar.
+### 6. Restart if asked
+The **first time** the driver is installed, Windows needs a **restart** to activate it. If the installer says so, click **Restart now** (or restart whenever you like). If the driver was already active, no restart is needed.
 
-## 🎮 Primer uso
+## 🎮 First use
 
-1. Abre **Editor n52te** (acceso directo en el Escritorio).
-2. Haz clic en un botón del dibujo del keypad (o pulsa **Identificar** y aprieta un botón físico del n52te).
-3. Elige qué hace el botón (una tecla, una combinación, un texto o abrir un programa) y pulsa **Asignar a este botón**.
-4. **Para probarlo, haz clic FUERA del editor** (mientras el editor está delante, el n52te escribe en crudo) y pulsa el botón en el n52te.
-5. Marca **"Iniciar el remapeador con Windows"** si quieres que funcione siempre, sin abrir nada.
+1. Open **n52te Editor** (shortcut on the Desktop).
+2. Click a button on the keypad drawing (or click **Identify** and press a physical button on the n52te).
+3. Choose what the button does (a key, a combination, text, or opening a program) and click **Assign to this button**.
+4. **To test it, click OUTSIDE the editor** (while the editor is in front, the n52te types raw keys) and press the button on the n52te.
+5. Check **"Start the remapper with Windows"** if you want it to always work without opening anything.
 
-> 💡 Tu teclado normal **no se ve afectado** en ningún momento: solo se remapean las teclas del n52te.
+### Blue, Green and Red keymaps
 
-## 🔄 Desinstalar
+Each button can do something different in each of three keymaps, like the original Belkin software:
 
-1. **Quitar el inicio automático**: abre el Editor y desmarca *"Iniciar el remapeador con Windows"*.
-2. **Borrar los archivos**: elimina la carpeta `C:\Program Files\n52te` y los accesos directos.
-3. **(Opcional) Quitar el driver Interception**: abre PowerShell **como administrador** y ejecuta:
+1. Pick a button to switch keymaps (for example the round thumb button), choose **Switch keymap (Blue / Green / Red)**, then pick **Cycle keymaps**, a color (stays until you switch again) or a color *only while held*. A switch button works the same in all three keymaps.
+2. Click the **Blue**, **Green** or **Red** tab above the keypad drawing and assign the other buttons for that keymap. Buttons with no action in Green or Red send their normal key.
+3. The keypad's light doesn't follow these keymaps: it shows the keymap stored in the keypad's own memory, which only Belkin's old driver can change. The editor shows the **Remapper keymap** at the top left, and the remapper window's title shows it too.
+
+> 💡 Your normal keyboard is **never affected**: only the n52te's keys are remapped.
+
+## ⬆️ Upgrading from an earlier (Spanish) version
+
+Just run the new installer. It keeps your existing button configuration, replaces the old `Editor n52te.exe` with `n52te Editor.exe`, and removes the old *Editor n52te* and *Remapeador n52te* shortcuts.
+
+## 🔄 Uninstall
+
+1. **Turn off autostart**: open the editor and uncheck *"Start the remapper with Windows"*.
+2. **Delete the files**: delete the `C:\Program Files\n52te` folder and the shortcuts.
+3. **(Optional) Remove the Interception driver**: open PowerShell **as administrator** and run:
    ```powershell
    & "C:\Program Files\n52te\install-interception.exe" /uninstall
    ```
-   Luego reinicia. (Si ya borraste la carpeta, descarga Interception desde su [repositorio oficial](https://github.com/oblitum/Interception) para desinstalarlo.)
+   Then restart. (If you already deleted the folder, download Interception from its [official repository](https://github.com/oblitum/Interception) to uninstall it.)
 
-## 🆘 Problemas frecuentes
+## 🆘 Troubleshooting
 
-| Síntoma | Solución |
+| Symptom | Fix |
 |---|---|
-| El editor dice *"el remapeador no está abierto"* | Abre el acceso directo **Remapeador n52te**, o marca *"Iniciar con Windows"* y reinicia. |
-| Asigné una tecla y no cambia | Recuerda hacer clic **fuera** del editor antes de probar el botón. Si bajo el dibujo pone que el remapeador **no reconoce** tu n52te, o tu keypad manda otras teclas (perfil rojo/verde/azul grabado), pulsa **Aprender teclas** en el editor. |
-| *"Acceso denegado"* al guardar | No debería pasar (la config va a `%ProgramData%`). Si ocurre, ejecuta el editor como administrador una vez. |
-| El n52te no aparece | Comprueba que esté conectado y que el driver cargó: reinicia tras la instalación. |
-| El teclado se comportó raro al instalar | Reinicia el equipo; el estado se reinicia limpio. |
+| The editor says *"the remapper isn't running"* | Open the **n52te Remapper** shortcut, or check *"Start the remapper with Windows"* and restart. |
+| I assigned a key and nothing changes | Remember to click **outside** the editor before testing the button. If the text under the drawing says the remapper **does not recognize** your n52te, or your keypad sends other keys (a stored red/green/blue profile), click **Learn keys** in the editor. |
+| *"Access is denied"* when saving | Versions up to 1.1.0 created the config folder as admin-only. Run the current installer again: it gives normal users write access to `C:\ProgramData\n52te`. |
+| The n52te doesn't show up | Check that it's plugged in and that the driver loaded: restart after installing. |
+| The keyboard acted strangely during install | Restart the computer; everything starts clean. |
 
-## ❓ ¿Necesito desactivar la Integridad de memoria?
+## ❓ Do I need to turn off Memory Integrity?
 
-**No.** El driver Interception que usa este proyecto es compatible con la Integridad de memoria (HVCI) de Windows 11, a diferencia del driver original de Belkin de 2008. No tienes que desactivar ninguna protección.
+**No.** The Interception driver this project uses is compatible with Windows 11 Memory Integrity (HVCI), unlike the original 2008 Belkin driver. You don't have to turn off any protection.
 
 ---
 
-<sub>Hecho por <b>INFOMALENA</b> · Software Development</sub>
+<sub>Made by <b>INFOMALENA</b> · Software Development</sub>
