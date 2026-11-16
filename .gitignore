@@ -18,3 +18,7 @@ desktop.ini
 
 # Build output (build.ps1)
 build/
+
+# Python bytecode (research scripts)
+__pycache__/
+*.pyc

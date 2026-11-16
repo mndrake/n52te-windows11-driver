@@ -93,10 +93,14 @@ Detailed install guide: **[INSTALL.md](INSTALL.md)**.
 
 The source for the editor (AutoHotkey v2), the remapper and the installer (C#, .NET Framework 4) is in [`src/`](src). It was recovered from the upstream v1.1.0 installer and translated to English. To build `Install-n52te.exe`:
 
-1. Put **AutoHotkey 2.0.30** in `tools\ahk\` and **Ahk2Exe** in `tools\ahk\Compiler\` (see the header of [`build.ps1`](build.ps1) for download links).
-2. Run `powershell -ExecutionPolicy Bypass -File .\build.ps1`. The installer and its `.sha256` are written to `build\`.
+1. Put `AutoHotkey64.exe` and `license.txt` from the **AutoHotkey 2.0.30** zip in `tools\ahk\` (see the header of [`build.ps1`](build.ps1) for the download link).
+2. Run `powershell -ExecutionPolicy Bypass -File .\build.ps1`. It checks the editor script for errors, compiles the remapper and the installer, and writes the installer and its `.sha256` to `build\`.
 
-The C# compiler that ships with Windows is used, so no Visual Studio is needed.
+The C# compiler that ships with Windows is used, so no Visual Studio is needed. The editor is installed as the standard `AutoHotkey64.exe` plus the readable `n52te Editor.ahk` script rather than a compiled exe, because compiled AutoHotkey programs trip antivirus heuristics.
+
+## 🔬 How the original Belkin driver worked
+
+How the original 2008 Belkin driver worked, and why the scroll wheel, mouse functions and keymap lights need more than key remapping: **[docs/original-driver-analysis.md](docs/original-driver-analysis.md)** (full reverse-engineering notes in [docs/reverse-engineering/](docs/reverse-engineering/README.md)).
 
 ## 🙏 Credits and third-party licenses
 
