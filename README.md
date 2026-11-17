@@ -32,7 +32,7 @@ Get-FileHash .\Install-n52te.exe -Algorithm SHA256
 The result must match this **exactly** (also published in [`Install-n52te.exe.sha256`](Install-n52te.exe.sha256)):
 
 ```
-A395137F52C4119F8E918196C27BE611C13815CAC0A9C9BBA276C12A31460CF8
+BA007EE7A488973942C94515B9A24F755603C1D127D11280894EB58697BD2A89
 ```
 
 If it doesn't match, **don't run it**. You can also upload the file to [VirusTotal](https://www.virustotal.com/) and scan it yourself before running it.
