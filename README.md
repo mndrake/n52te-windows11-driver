@@ -65,9 +65,25 @@ Experimental: the remapper filters by Belkin's USB vendor ID (`VID_050D`), not o
 
 ## 🚧 Known limitations
 
-- **Keypad light and onboard memory**: the n52te runs a profile stored in its own memory (3 keymaps × 27 inputs), and its light shows that profile's active keymap. Only a USB command this app can't send yet changes it (see [the driver analysis](docs/original-driver-analysis.md)), so the light shows the keypad's keymap, not this app's: use the editor ("Remapper keymap") or the remapper window title for that one.
+- **Keypad light and onboard memory**: the n52te runs a profile stored in its own memory (3 keymaps × 27 inputs), and its light shows that profile's active keymap, not the remapper's: use the editor ("Remapper keymap") or the remapper window title for that one. To switch or rewrite the keypad's own keymaps, use `n52te-config` (below).
 - **Controls that send nothing**: if the old Belkin editor gave a control a PC-side action (joystick, launch app, load profile…) or disabled it, the keypad now sends a code Windows drops, or nothing. Identify and Learn keys don't react to it and no software on Windows 11 can remap it. Fix it once with the original Belkin software (for example in a Windows 7 VM with USB passthrough): reset the control to default and load the profile to the keypad. A worn contact is the other possibility.
 - **Elevated games**: the remapper runs as the normal user, so Windows doesn't let its remapped input reach programs running as administrator.
+
+## 💾 The keypad's own keymaps (`n52te-config`, experimental)
+
+The installer also adds `n52te-config.exe`, a command-line tool that talks to the keypad's onboard memory the way Belkin's software did: it reads the three stored keymaps, switches the active one (the light follows and it stays after unplugging) and writes keys back. The keypad then runs them itself, with nothing running on the PC. It needs **[UsbDk 1.0.22 x64](https://github.com/daynix/UsbDk/releases)**, which the installer doesn't include; **restart Windows after installing UsbDk** (installing it restarts the USB stacks and can leave a Bluetooth keyboard not typing until a reboot).
+
+Open **n52te Keymaps (command prompt)** from the Start menu:
+
+```
+n52te-config info                   firmware version and active keymap
+n52te-config select blue            switch the keypad to its Blue keymap (or red / green)
+n52te-config read all               show what every control does in each keymap
+n52te-config set blue 18 2F --yes   set input 18 (wheel down) of Blue to code 2F (B)
+n52te-config write FILE blue --yes  write a saved keymap image, e.g. a backup
+```
+
+Every write saves a backup of the keymap first, in `Documents\n52te keymaps`. The keypad doesn't type while the tool runs (a few seconds). Input numbers and codes are in [docs/reverse-engineering/04](docs/reverse-engineering/04-onboard-profile-and-codes.md); single keys have been tested on hardware, macros, mouse and keymap-switch codes not yet. The tool works with Memory Integrity off; with it on it hasn't been tested yet. Details: [docs/profile-tool-design.md](docs/profile-tool-design.md).
 
 ## 🧩 Compatibility
 
@@ -94,7 +110,7 @@ Detailed install guide: **[INSTALL.md](INSTALL.md)**.
 The source for the editor (AutoHotkey v2), the remapper and the installer (C#, .NET Framework 4) is in [`src/`](src). It was recovered from the upstream v1.1.0 installer and translated to English. To build `Install-n52te.exe`:
 
 1. Put `AutoHotkey64.exe` and `license.txt` from the **AutoHotkey 2.0.30** zip in `tools\ahk\` (see the header of [`build.ps1`](build.ps1) for the download link).
-2. Run `powershell -ExecutionPolicy Bypass -File .\build.ps1`. It checks the editor script for errors, compiles the remapper and the installer, and writes the installer and its `.sha256` to `build\`.
+2. Run `powershell -ExecutionPolicy Bypass -File .\build.ps1`. It checks the editor script for errors, compiles the remapper, `n52te-config` and the installer, and writes the installer and its `.sha256` to `build\`.
 
 The C# compiler that ships with Windows is used, so no Visual Studio is needed. The editor is installed as the standard `AutoHotkey64.exe` plus the readable `n52te Editor.ahk` script rather than a compiled exe, because compiled AutoHotkey programs trip antivirus heuristics.
 

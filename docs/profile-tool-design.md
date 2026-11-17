@@ -58,8 +58,10 @@ the stored profile leaves silent, and can't change the keypad's keymap or LED (s
 
 ## Using `n52te-config` on Windows
 
-Requires [UsbDk 1.0.22 x64](https://github.com/daynix/UsbDk/releases) (signed by Red Hat). Build
-with the C# compiler that ships with Windows:
+Requires [UsbDk 1.0.22 x64](https://github.com/daynix/UsbDk/releases) (signed by Red Hat). The
+installer puts `n52te-config.exe` in `C:\Program Files\n52te` and adds a Start-menu shortcut,
+**n52te Keymaps (command prompt)**, that opens a prompt with the tool on its `PATH`. It doesn't
+bundle UsbDk; it logs whether UsbDk is installed. `build.ps1` compiles the tool; on its own:
 
 ```
 csc /platform:x64 /out:n52te-config.exe src\configtool\N52teConfig.cs
@@ -74,7 +76,8 @@ csc /platform:x64 /out:n52te-config.exe src\configtool\N52teConfig.cs
 | `n52te-config set KM INPUT CODE --yes` | change one input to a firmware code (hex), verify |
 | `n52te-config write FILE KM --yes` | write a saved image (e.g. a backup) as keymap KM, verify |
 
-Every write first saves `keymapN-before-<time>.bin` in the current folder, checks each chunk's
+Every write first saves `keymapN-before-<time>.bin` in `Documents\n52te keymaps` (also where
+`read` saves images unless given a folder), checks each chunk's
 checksum, and reads the keymap back to verify. The keypad doesn't type while the tool runs;
 UsbDk hands it back to Windows when the tool exits.
 

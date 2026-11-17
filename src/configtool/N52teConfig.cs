@@ -388,10 +388,17 @@ Keymaps: 0 = blue, 1 = red, 2 = green.
 
   n52te-config info                     firmware version and active keymap
   n52te-config select blue|red|green    make that keymap active (the LED follows; kept after unplugging)
-  n52te-config read [0|1|2|all] [DIR]   read keymaps back, decode them, save keymapN.bin in DIR (default: .)
+  n52te-config read [0|1|2|all] [DIR]   read keymaps back, decode them, save keymapN.bin in DIR
   n52te-config roundtrip 0|1|2          write a keymap back unchanged and verify it (tests the write path)
   n52te-config set KM INPUT CODE --yes  set one input (1-27) of keymap KM to a firmware code (hex), verify
-  n52te-config write FILE KM --yes      write a saved keymap image (e.g. a backup) as keymap KM, verify";
+  n52te-config write FILE KM --yes      write a saved keymap image (e.g. a backup) as keymap KM, verify
+
+Every write first saves the keymap's current contents as a backup. Backups and read-back
+images go to Documents\n52te keymaps (read: unless DIR is given).";
+
+    // Durable and writable by the user wherever the tool is run from: it's installed under
+    // Program Files, and a backup must never fail because the current folder is read-only.
+    private static readonly string DataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "n52te keymaps");
 
     private static int Main(string[] args)
     {
@@ -445,7 +452,7 @@ Keymaps: 0 = blue, 1 = red, 2 = green.
                 case "read":
                 {
                     string which = args.Length > 1 ? args[1] : "all";
-                    string dir = args.Length > 2 ? args[2] : ".";
+                    string dir = args.Length > 2 ? args[2] : DataDir;
                     Directory.CreateDirectory(dir);
                     int[] kms = which == "all" ? new[] { 0, 1, 2 } : new[] { ParseKeymap(which) };
                     foreach (int km in kms)
@@ -493,7 +500,8 @@ Keymaps: 0 = blue, 1 = red, 2 = green.
                         km = ParseKeymap(args[2]);
                         before = pad.ReadKeymap(km);
                     }
-                    string backup = string.Format("keymap{0}-before-{1:yyyyMMdd-HHmmss}.bin", km, DateTime.Now);
+                    Directory.CreateDirectory(DataDir);
+                    string backup = Path.Combine(DataDir, string.Format("keymap{0}-before-{1:yyyyMMdd-HHmmss}.bin", km, DateTime.Now));
                     File.WriteAllBytes(backup, before);
                     Console.WriteLine("backup of keymap {0} before writing: {1}", km, Path.GetFullPath(backup));
                     byte[] image = Keypad.UploadImage(source, km);

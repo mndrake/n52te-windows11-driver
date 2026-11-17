@@ -35,9 +35,15 @@ internal static class Installer
 
 	private const string EDITOR_SCRIPT = "n52te Editor.ahk";
 
-	private static readonly string[,] PAYLOAD = new string[9, 2]
+	// Reads, switches and writes the keypad's onboard keymaps. Needs UsbDk (not bundled).
+	private const string CONFIG_EXE = "n52te-config.exe";
+
+	private const string USBDK_HELPER = "C:\\Program Files\\UsbDk Runtime Library\\UsbDkHelper.dll";
+
+	private static readonly string[,] PAYLOAD = new string[10, 2]
 	{
 		{ "RES_REMAPPER", "n52te_interception.exe" },
+		{ "RES_CONFIG", CONFIG_EXE },
 		{ "RES_DLL", "interception.dll" },
 		{ "RES_AHK", AHK_EXE },
 		{ "RES_AHK_LICENSE", "AutoHotkey license.txt" },
@@ -279,7 +285,20 @@ internal static class Installer
 			MakeShortcut(Path.Combine(text3, "n52te Editor.lnk"), text, editorArgs, "C:\\Program Files\\n52te", icon, "n52te button editor");
 			MakeShortcut(Path.Combine(folderPath, "n52te Editor.lnk"), text, editorArgs, "C:\\Program Files\\n52te", icon, "n52te button editor");
 			MakeShortcut(Path.Combine(text3, "n52te Remapper.lnk"), text2, "", "C:\\Program Files\\n52te", icon, "n52te remapper (runs in the background)");
+			// A command prompt with n52te-config on its PATH, showing the keypad's state and the commands.
+			string cmdExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+			string configArgs = "/k \"set \"PATH=C:\\Program Files\\n52te;%PATH%\" & n52te-config info & echo. & n52te-config\"";
+			MakeShortcut(Path.Combine(text3, "n52te Keymaps (command prompt).lnk"), cmdExe, configArgs, "C:\\Program Files\\n52te", icon, "Read, switch and write the n52te's onboard keymaps (needs UsbDk)");
 			Log("   shortcuts created on the Desktop and in the Start menu");
+			if (File.Exists(USBDK_HELPER))
+			{
+				Log("   UsbDk found: n52te-config can read and write the keypad's onboard keymaps.");
+			}
+			else
+			{
+				Log("   (optional) n52te-config needs UsbDk to reach the keypad's onboard keymaps:");
+				Log("   install UsbDk 1.0.22 x64 from github.com/daynix/UsbDk/releases, then restart.");
+			}
 			Log("== 6/6 Checking the driver ==");
 			if (DriverRunning())
 			{

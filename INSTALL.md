@@ -28,8 +28,8 @@ Windows will ask for administrator permission (needed to install the driver). Cl
 In the installer window, click **Install**. The installer:
 1. Removes leftovers of old Belkin drivers.
 2. Installs the **Interception** driver.
-3. Copies the editor and the remapper to `C:\Program Files\n52te`.
-4. Creates shortcuts on the Desktop and in the Start menu.
+3. Copies the editor, the remapper and `n52te-config` to `C:\Program Files\n52te`.
+4. Creates shortcuts on the Desktop and in the Start menu, including **n52te Keymaps (command prompt)** for `n52te-config` (it needs UsbDk; see the README).
 5. Leaves the n52te ready to use.
 
 ### 6. Restart if asked
@@ -49,7 +49,7 @@ Each button can do something different in each of three keymaps, like the origin
 
 1. Pick a button to switch keymaps (for example the round thumb button), choose **Switch keymap (Blue / Green / Red)**, then pick **Cycle keymaps**, a color (stays until you switch again) or a color *only while held*. A switch button works the same in all three keymaps.
 2. Click the **Blue**, **Green** or **Red** tab above the keypad drawing and assign the other buttons for that keymap. Buttons with no action in Green or Red send their normal key.
-3. The keypad's light doesn't follow these keymaps: it shows the keymap stored in the keypad's own memory, which only Belkin's old driver can change. The editor shows the **Remapper keymap** at the top left, and the remapper window's title shows it too.
+3. The keypad's light doesn't follow these keymaps: it shows the keymap stored in the keypad's own memory, which `n52te-config select` changes (see the README). The editor shows the **Remapper keymap** at the top left, and the remapper window's title shows it too.
 
 > 💡 Your normal keyboard is **never affected**: only the n52te's keys are remapped.
 

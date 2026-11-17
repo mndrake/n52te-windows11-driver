@@ -8,9 +8,12 @@
      not as a compiled exe (compiled AutoHotkey programs trip antivirus heuristics).
   2. Compiles src\remapper\Program.cs (n52te_interception.exe) with the
      .NET Framework 4.x C# compiler that ships with Windows.
-  3. Compiles src\installer\Installer.cs, embedding the editor script, AutoHotkey64.exe
-     and its license, the remapper and the files in src\installer\resources.
-  4. Writes the installer's SHA-256 next to it.
+  3. Compiles src\configtool\N52teConfig.cs (n52te-config.exe), the command-line tool that
+     reads, switches and writes the keypad's onboard keymaps. It needs UsbDk at run time,
+     which the installer does not bundle.
+  4. Compiles src\installer\Installer.cs, embedding the editor script, AutoHotkey64.exe
+     and its license, the remapper, n52te-config and the files in src\installer\resources.
+  5. Writes the installer's SHA-256 next to it.
 
   Output goes to build\. Nothing is installed.
 
@@ -64,11 +67,17 @@ Write-Host '== n52te_interception.exe'
 $remapperExe = Join-Path $obj 'n52te_interception.exe'
 Invoke-Csc @('/target:exe', "/out:$remapperExe", '/r:System.dll', '/r:System.Core.dll', (Join-Path $src 'remapper\Program.cs'))
 
-# 3. Installer (WinForms app with embedded payload)
+# 3. Keymap tool (console app)
+Write-Host '== n52te-config.exe'
+$configExe = Join-Path $obj 'n52te-config.exe'
+Invoke-Csc @('/target:exe', "/out:$configExe", '/r:System.dll', '/r:System.Core.dll', (Join-Path $src 'configtool\N52teConfig.cs'))
+
+# 4. Installer (WinForms app with embedded payload)
 Write-Host "== $InstallerName"
 $installerExe = Join-Path $OutDir $InstallerName
 $payload = [ordered]@{
     RES_REMAPPER    = $remapperExe
+    RES_CONFIG      = $configExe
     RES_DLL         = Join-Path $res 'interception.dll'
     RES_AHK         = $ahkExe
     RES_AHK_LICENSE = $ahkLicense
@@ -90,7 +99,7 @@ foreach ($name in $payload.Keys) { $cscArgs += "/resource:$($payload[$name]),$na
 $cscArgs += Join-Path $src 'installer\Installer.cs'
 Invoke-Csc $cscArgs
 
-# 4. Checksum
+# 5. Checksum
 $hash = (Get-FileHash $installerExe -Algorithm SHA256).Hash
 Set-Content -Path "$installerExe.sha256" -Value $hash -NoNewline -Encoding Ascii
 Write-Host ''
