@@ -187,9 +187,20 @@ foreground app without noticeable delay.
 | Interrupted upload | Per-chunk checksum, whole-keymap resend, backup of last good profile |
 | Chord collisions for PC actions | User-configurable chords; detect `RegisterHotKey` failures and report them |
 
-## 6. Decisions to make
+## 6. Decisions
 
-1. UI technology: WinForms or WPF on .NET 8, single self-contained `.exe`. Recommended:
-   WinForms, small and simple. It replaces the AutoHotkey editor.
-2. Whether the Companion is in the first release or later.
-3. Whether to keep Spanish as the default UI language, as in the current editor.
+Decided on 18 Nov 2026:
+
+1. **UI technology:** WinForms on .NET 8, published as self-contained single-file `.exe`s. It
+   replaces the AutoHotkey editor.
+2. **Companion:** part of the first release (phase 5 work runs alongside phase 4).
+3. **Language:** English is the default UI language. Spanish follows as a translation.
+
+## 7. Code layout
+
+| Path | What |
+|---|---|
+| `src/N52te.Core` | Profile model, key-code tables, keymap image builder, Belkin `.ini` import/export, JSON, text-to-macro, Companion chord allocation, device client over a transport interface (with the safety guard) |
+| `src/N52te.Core.Tests` | Unit tests, runnable on any OS. Set `N52TE_BELKIN_DEFAULT_INI` to Belkin's `Default.ini` to also run the byte-for-byte round-trip test |
+| `src/N52te.Editor` | WinForms editor |
+| `src/N52te.Companion` | WinForms tray app |

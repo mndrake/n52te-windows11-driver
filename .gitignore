@@ -15,3 +15,8 @@ extracted/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# .NET build output
+src/**/bin/
+src/**/obj/
+src/**/TestResults/

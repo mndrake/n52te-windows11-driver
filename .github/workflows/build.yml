@@ -1,0 +1,33 @@
+name: build
+
+on:
+  push:
+    paths: ["src/**", ".github/workflows/build.yml"]
+  pull_request:
+    paths: ["src/**", ".github/workflows/build.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Test
+        run: dotnet test src/N52te.Core.Tests -c Release
+      - name: Publish
+        shell: pwsh
+        run: |
+          foreach ($p in 'N52te.Editor', 'N52te.Companion') {
+            dotnet publish "src/$p" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o out
+          }
+          Remove-Item out/*.pdb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n52te-preview
+          path: out/
