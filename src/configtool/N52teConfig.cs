@@ -42,6 +42,13 @@ internal static class UsbDk
     [DllImport("UsbDkHelper.dll", SetLastError = true)]
     public static extern int UsbDk_ReadPipe(IntPtr handle, IntPtr request, IntPtr overlapped);
 
+    [DllImport("UsbDkHelper.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UsbDk_AbortPipe(IntPtr handle, ulong pipeAddress);
+
+    [DllImport("UsbDkHelper.dll")]
+    public static extern IntPtr UsbDk_GetRedirectorSystemHandle(IntPtr handle);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern IntPtr CreateEvent(IntPtr attributes, bool manualReset, bool initialState, string name);
 
@@ -141,6 +148,71 @@ internal sealed class Keypad : IDisposable
             UsbDk.CloseHandle(evt);
         }
     }
+
+    [DllImport("kernel32.dll")]
+    private static extern uint WaitForMultipleObjects(uint count, IntPtr[] handles, bool waitAll, uint milliseconds);
+
+    // Diagnostic: print the raw input reports the keypad sends on its interrupt endpoints
+    // (0x81 keyboard, 0x82 mouse/consumer) for a number of seconds. Windows sees none of them
+    // meanwhile. Buffers of reads still pending at the end are deliberately not freed: the
+    // redirect is stopped right after, which cancels them.
+    public void Listen(int seconds, TextWriter o)
+    {
+        byte[] eps = { 0x81, 0x82 };
+        var bufs = new IntPtr[2];
+        var reqs = new IntPtr[2];
+        var ovs = new IntPtr[2];
+        var evts = new IntPtr[2];
+        for (int i = 0; i < 2; i++)
+        {
+            bufs[i] = Marshal.AllocHGlobal(64);
+            reqs[i] = Marshal.AllocHGlobal(UsbDk.RequestSize);
+            ovs[i] = Marshal.AllocHGlobal(32);
+            evts[i] = UsbDk.CreateEvent(IntPtr.Zero, true, false, null);
+        }
+        Action<int> start = i =>
+        {
+            for (int k = 0; k < UsbDk.RequestSize; k += 8) Marshal.WriteInt64(reqs[i], k, 0);
+            Marshal.WriteInt64(reqs[i], 0, eps[i]);
+            Marshal.WriteInt64(reqs[i], 8, bufs[i].ToInt64());
+            Marshal.WriteInt64(reqs[i], 16, 64);
+            Marshal.WriteInt64(reqs[i], 24, 2); // InterruptTransferType
+            for (int k = 0; k < 32; k += 8) Marshal.WriteInt64(ovs[i], k, 0);
+            Marshal.WriteIntPtr(ovs[i], 24, evts[i]);
+            if (UsbDk.UsbDk_ReadPipe(handle, reqs[i], ovs[i]) == 0)
+                throw new IOException(string.Format("interrupt read on endpoint {0:X2} failed (error {1})", eps[i], Marshal.GetLastWin32Error()));
+        };
+        start(0);
+        start(1);
+        o.WriteLine("listening on endpoints 81 and 82 for {0} s: press the keypad's buttons", seconds);
+        DateTime end = DateTime.Now.AddSeconds(seconds);
+        while (DateTime.Now < end)
+        {
+            uint w = WaitForMultipleObjects(2, evts, false, (uint)Math.Max(1, (end - DateTime.Now).TotalMilliseconds));
+            if (w > 1) break; // timeout
+            int i = (int)w;
+            long status = Marshal.ReadInt64(reqs[i], 56);
+            int got = (int)Math.Min(64, Marshal.ReadInt64(reqs[i], 48));
+            var data = new byte[Math.Max(0, got)];
+            Marshal.Copy(bufs[i], data, 0, data.Length);
+            o.WriteLine("{0:HH:mm:ss.fff} EP {1:X2}: {2}{3}", DateTime.Now, eps[i], Hex(data), status != 0 ? string.Format(" (USBD status 0x{0:X8})", status) : "");
+            start(i);
+        }
+        // Abort the pending reads before the redirect is stopped; otherwise UsbDk keeps the
+        // keypad redirected after this program exits (seen on hardware: error 183 next time, and
+        // the keypad types nothing until it is replugged). The handle from UsbDk_StartRedirect is
+        // the helper's own pointer, not a file handle, so CancelIoEx on it does nothing.
+        foreach (byte ep in eps) UsbDk.UsbDk_AbortPipe(handle, ep);
+        if (WaitForMultipleObjects(2, evts, true, 2000) > 1)
+        {
+            IntPtr sys = UsbDk.UsbDk_GetRedirectorSystemHandle(handle);
+            if (sys != IntPtr.Zero) CancelIoEx(sys, IntPtr.Zero);
+            WaitForMultipleObjects(2, evts, true, 2000);
+        }
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern bool CancelIoEx(IntPtr file, IntPtr overlapped);
 
     // One control transfer on endpoint 0. For IN requests returns the data; for OUT returns null.
     public byte[] Control(byte requestType, byte request, ushort value, ushort index, byte[] dataOut, int lengthIn)
@@ -438,6 +510,10 @@ images go to Documents\n52te keymaps (read: unless DIR is given).";
             switch (cmd)
             {
                 case "info":
+                    return 0;
+
+                case "listen":
+                    pad.Listen(args.Length > 1 ? int.Parse(args[1]) : 20, Console.Out);
                     return 0;
 
                 case "select":
