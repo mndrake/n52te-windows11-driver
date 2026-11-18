@@ -18,6 +18,14 @@ this project, and how to fix them. The pages here are the detailed reference beh
 | [05 - n52teHid.exe service](05-n52tehid-service.md) | Startup sequence, driver events, PC-side action types, the virtual joystick report |
 | [06 - n52teCfg.exe editor](06-n52tecfg-editor.md) | Every assignable action and the code/bytes it writes, keymap rules, macro recorder hook |
 
+## Next steps
+
+* [`../onboard-editor-plan.md`](../onboard-editor-plan.md): plan for an editor that uploads
+  profiles to the keypad (no remapper, no Interception), with an optional Companion app for
+  PC-side actions.
+* [`../../research/n52te-probe.ps1`](../../research/n52te-probe.ps1): read-only Windows probe
+  that dumps the keypad's HID interfaces and report descriptors. It is phase 0 of the plan.
+
 ## Status of the findings
 
 * **Verified from code**: read directly from the decompiled or disassembled binaries, and
