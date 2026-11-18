@@ -28,7 +28,15 @@ dotnet publish src/N52te.Editor    -c Release -r win-x64 --self-contained false 
 dotnet publish src/N52te.Companion -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o out
 ```
 
-Use `--self-contained true` for builds that don't need the .NET 10 Desktop Runtime (about 70 MB each).
+For standalone builds that need no runtime installed (about 52 MB each, runtime included):
+
+```sh
+dotnet publish src/N52te.Editor -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true \
+  -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o out
+```
+
+Standalone builds only get .NET security fixes when they are rebuilt. The CI workflow publishes
+both variants as build artifacts.
 
 ## Status
 

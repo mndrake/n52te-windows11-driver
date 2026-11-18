@@ -24,10 +24,16 @@ jobs:
         shell: pwsh
         run: |
           foreach ($p in 'N52te.Editor', 'N52te.Companion') {
-            dotnet publish "src/$p" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o out
+            dotnet publish "src/$p" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o out/runtime-required
+            dotnet publish "src/$p" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true `
+              -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o out/standalone
           }
-          Remove-Item out/*.pdb
+          Remove-Item out/*/*.pdb
       - uses: actions/upload-artifact@v4
         with:
-          name: n52te-preview
-          path: out/
+          name: n52te-preview-runtime-required
+          path: out/runtime-required/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n52te-preview-standalone
+          path: out/standalone/
