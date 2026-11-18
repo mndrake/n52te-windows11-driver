@@ -34,6 +34,7 @@ namespace N52te
         private int hoverInput, menuInput;
         private readonly Timer presence = new Timer { Interval = 3000 };
         private readonly ToolTip tip = new ToolTip();
+        private readonly MacroEditor macros;
 
         public MainForm(bool live)
         {
@@ -44,6 +45,7 @@ namespace N52te
             BackColor = Color.Black;
             Font = new Font("Arial", 9f);
             using (Graphics g = CreateGraphics()) scale = settings.Scale > 0 ? settings.Scale : Math.Max(1f, (float)Math.Round(g.DpiX / 96f * 1.25f * 4) / 4);
+            macros = new MacroEditor(this);
             LoadSkin(live ? settings.BelkinSkin : null);
             ApplyScale();
             if (!live) return;
@@ -53,6 +55,7 @@ namespace N52te
             presence.Start();
             Shown += (s, e) =>
             {
+                macros.ShowState();
                 if (UsbDkTransport_IsPresent()) ReadFromKeypad(false);
                 else
                 {
@@ -74,16 +77,22 @@ namespace N52te
                 status = "couldn't load Belkin's artwork: " + e.Message;
             }
             if (old != null) old.Dispose();
+            if (macros != null) macros.SetLook(skin.Source, scale);
             Invalidate();
         }
 
         private void ApplyScale()
         {
             ClientSize = new Size((int)Math.Round(SkinLayout.Width * scale), (int)Math.Round(SkinLayout.Height * scale));
+            if (macros != null) macros.SetLook(skin.Source, scale);
             Invalidate();
         }
 
-        public void SaveScreenshot(string path, string belkinFolder, int highlight)
+        public void SetStatusText(string s) { SetStatus(s); }
+
+        // Development aid and README picture: the window (and optionally the macro editor with a
+        // sample macro) rendered offline, with the factory profile.
+        public void SaveScreenshot(string path, string belkinFolder, int highlight, bool withMacroEditor)
         {
             LoadSkin(belkinFolder);
             scale = 1.5f;
@@ -91,12 +100,24 @@ namespace N52te
             connected = true;
             polling = 0;
             if (highlight > 0) { hoverInput = highlight; hover = skin.Box(highlight); }
-            status = "screenshot";
+            status = withMacroEditor ? "" : "screenshot";
             CreateControl();
-            using (var b = new Bitmap(ClientSize.Width, ClientSize.Height))
+            using (var main = new Bitmap(ClientSize.Width, ClientSize.Height))
             {
-                DrawToBitmap(b, new Rectangle(Point.Empty, ClientSize));
-                b.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+                DrawToBitmap(main, new Rectangle(Point.Empty, ClientSize));
+                if (!withMacroEditor) { main.Save(path, System.Drawing.Imaging.ImageFormat.Png); return; }
+                macros.Demo();
+                using (Bitmap panel = macros.Render())
+                using (var both = new Bitmap(main.Width + panel.Width - 2, main.Height))
+                {
+                    using (Graphics g = Graphics.FromImage(both))
+                    {
+                        g.Clear(Color.Transparent);
+                        g.DrawImage(main, 0, 0);
+                        g.DrawImage(panel, main.Width - 2, (int)(30 * scale));
+                    }
+                    both.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+                }
             }
         }
 
@@ -316,7 +337,7 @@ namespace N52te
             m.Items.Add(new ToolStripMenuItem(name + " - " + KeypadLayout.KeymapNames[km] + " keymap") { Enabled = false });
             m.Items.Add(new ToolStripSeparator());
             m.Items.Add("Single Key...", null, (s, e) => SingleKey(n));
-            m.Items.Add("Macro...", null, (s, e) => EditMacro(n));
+            m.Items.Add(MacroMenu(n));
             m.Items.Add(Submenu("Keymap", Assignment.Keymap, n));
             m.Items.Add(Submenu("Mouse Button", Assignment.Mouse, n));
             m.Items.Add(Submenu("Basic Commands", Assignment.BasicCommands, n));
@@ -332,6 +353,44 @@ namespace N52te
             m.Items.Add("Disable Button", null, (s, e) => SetCode(n, FirmwareCodes.Disabled));
             m.Closed += (s, e) => { menuInput = 0; Invalidate(); };
             m.Show(this, at);
+        }
+
+        // Macro: the saved macros (as in Belkin's menu), the macro open in the macro editor, and editing.
+        private ToolStripMenuItem MacroMenu(int n)
+        {
+            var sub = new ToolStripMenuItem("Macro");
+            foreach (string saved in SavedMacro.List())
+            {
+                string file = SavedMacro.PathFor(saved);
+                sub.DropDownItems.Add(saved, null, (s, e) =>
+                {
+                    try { AssignMacro(n, SavedMacro.Read(file)); }
+                    catch (Exception ex) { MessageBox.Show(this, ex.Message, "Macro", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                });
+            }
+            if (sub.DropDownItems.Count > 0) sub.DropDownItems.Add(new ToolStripSeparator());
+            sub.DropDownItems.Add(new ToolStripMenuItem("The Macro Editor's Macro (" + macros.MacroName + ")", null, (s, e) => AssignMacro(n, macros.Current())) { Enabled = macros.HasSteps });
+            InputRecord r = profile.Keymaps[km][n - 1];
+            bool isMacro = r.Code == KeypadLayout.MacroMarker[n - 1] && r.FirmwareSequence == null && r.Sequence[0] != 0;
+            sub.DropDownItems.Add(new ToolStripMenuItem("Edit This Input's Macro in the Macro Editor", null, (s, e) =>
+            {
+                var m = new SavedMacro { Name = KeypadLayout.InputNames[n - 1] + " (" + KeypadLayout.KeymapNames[km] + ")", Sequence = (byte[])r.Sequence.Clone(), Options = (byte[])r.Options.Clone() };
+                macros.LoadMacro(m, null);
+                if (!macros.Expanded) macros.Toggle();
+            }) { Enabled = isMacro });
+            sub.DropDownItems.Add("Type the Steps...", null, (s, e) => EditMacro(n));
+            sub.DropDownItems.Add(new ToolStripSeparator());
+            sub.DropDownItems.Add(macros.Expanded ? "Close the Macro Editor" : "Open the Macro Editor", null, (s, e) => macros.Toggle());
+            return sub;
+        }
+
+        private void AssignMacro(int n, SavedMacro m)
+        {
+            if (m.Sequence[0] == 0) { SetStatus("that macro has no steps"); return; }
+            var o = (byte[])m.Options.Clone();
+            if (o[0] > 2) o[0] = 0;
+            Replace(n, new InputRecord { Code = KeypadLayout.MacroMarker[n - 1], Sequence = (byte[])m.Sequence.Clone(), Options = o });
+            SetStatus("macro '" + (m.Name.Length > 0 ? m.Name : "unnamed") + "' assigned");
         }
 
         private ToolStripMenuItem Submenu(string text, Assignment.Item[] items, int n)
@@ -426,6 +485,7 @@ namespace N52te
         {
             var m = new ContextMenuStrip();
             m.Items.Add("Read from Keypad", null, (s, e) => ReadFromKeypad(true)).Enabled = !busy;
+            m.Items.Add(macros.Expanded ? "Close the Macro Editor" : "Macro Editor", null, (s, e) => macros.Toggle());
             m.Items.Add("Apply Changes", null, (s, e) => ApplyChanges()).Enabled = !busy;
             m.Items.Add(new ToolStripSeparator());
             m.Items.Add("Open Profile File...", null, (s, e) => OpenProfileFile());
@@ -742,6 +802,7 @@ namespace N52te
         {
             if (busy) { e.Cancel = true; return; }
             if (!ConfirmDiscard()) e.Cancel = true;
+            else macros.StopRecording();
             base.OnFormClosing(e);
         }
     }

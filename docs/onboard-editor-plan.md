@@ -188,6 +188,20 @@ not available.
 
 ### Phase 3 – Macro editor
 
+First version built on 18 Nov 2026 (`src/onboardeditor/MacroEditor.cs`, `src/core/MacroFile.cs`),
+not yet tried by a user: Belkin's 266 × 456 macro panel from `Macro_expand.ini`, sliding out of
+the main window's right edge with its collapsed "MACRO EDITOR" tab, with Belkin's artwork or the
+built-in one. It covers steps 14–16: recording through a system-wide low-level keyboard hook
+(like `KBHook.dll`; auto-repeat skipped, time between events as delay steps unless *Ignore
+delays*, stops at 128 steps), Advanced (keys, mouse, media), mouse-button steps from the mouse
+picture, Insert Delay with Belkin's 50–1000 ms choices, Move Up / Down, Delete, Select All /
+Select All Delays, Macro Behavior (Run Times 1–10, Repeat while pressed, Repeat until next key,
+interval 50–250 ms), and saved macros in Belkin's macro file format (`Documents\n52te\Macros`)
+with New / Open / Save / Save As / Delete and the "presses more than it releases" warning. An
+input's right-click **Macro** menu lists the saved macros, the macro open in the editor, *Edit
+This Input's Macro* and *Type the Steps…* (the text dialog). The README shows a screenshot
+(built-in artwork only: Belkin's images stay out of the repository).
+
 14. Step list with Record / Stop, Insert Delay (50 ms units, up to 6350 ms), Move Up / Down,
     Delete, Select All / Select All Delays, Ignore delays, mouse-button steps.
 15. Macro Behavior options mapped to p1–p3 (from step 3); size check before Apply Changes.

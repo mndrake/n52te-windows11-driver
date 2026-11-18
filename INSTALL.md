@@ -27,6 +27,10 @@ Version 2 is in development: there is no release yet, so build the installer fir
 3. Click **Apply Changes**. The editor lists what will change, backs up each keymap it writes, writes it, checks it by reading it back, and switches the keypad to the keymap whose tab is showing. The keypad doesn't type for those few seconds.
 4. **Save** keeps the profile in `Documents\n52te\Profiles` (Belkin's `.ini` format); **Import** loads a Belkin profile.
 
+### Macros
+
+Click the **MACRO EDITOR** tab on the window's right edge. Click **Record**, type the keys (the editor records them from any window, with the time between them unless *Ignore delays* is ticked), then **Stop**. Use **Advanced** for media keys and other keys, the mouse picture for mouse clicks, **Insert Delay** for pauses (choose the length in the box below it), and **Move Up / Move Down / Delete** to tidy up. Pick the **Macro Behavior**, then **Save** it under a name (`Documents\n52te\Macros`). To use it, right-click an input → **Macro** → the macro's name, then **Apply Changes**. A macro holds up to 128 steps, delays included.
+
 Right-click the window background for more: *Read from Keypad*, profile files, *Artwork* (use Belkin's original images from your own copy of the v2.1.2 software), window size, and the backups folder.
 
 ## ⬆️ Upgrading from version 1

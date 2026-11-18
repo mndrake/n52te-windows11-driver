@@ -2,6 +2,12 @@
 
 **Program the Belkin n52te (a.k.a. Razer Nostromo n52te / n52 Tournament Edition) gaming keypad on Windows 11 and Windows 10 (64-bit), the way Belkin's original software did:** edit its three keymaps, write them into the keypad, and the keypad runs them by itself — keys, mouse buttons, scroll wheel, media keys, macros and Blue / Red / Green keymap switching with the light — on any PC, with nothing running in the background.
 
+<p align="center">
+  <img src="docs/img/editor.png" alt="n52te Editor: the main window in Belkin's layout, with the macro editor open" width="820">
+</p>
+
+<p align="center"><sub>The n52te Editor with its built-in artwork and the macro editor open. With your own copy of Belkin's v2.1.2 software it can show Belkin's original artwork instead.</sub></p>
+
 > **Status: version 2 is in development on this branch.** The editor and `n52te-config` work and have been tested on a real keypad, but there is no v2 release yet. The previous version (a remapper based on the Interception driver) is still available as **[v1.3.0](../../releases/tag/v1.3.0)**; its source is at the [`v1.3.0` tag](../../tree/v1.3.0).
 
 ## Why
@@ -13,6 +19,7 @@ The official Belkin/Razer software (`n52te v2.1.2`, July 2008) was built for Win
 - **`n52te Editor`**: an editor laid out like Belkin's n52te Editor v2.1.2 — Map 1 / Map 2 / Map 3 (Blue, Red, Green), a box for each of the 27 inputs (14 keys, round thumb button, wheel up / click / down, thumb pad, D-pad with diagonals) with Belkin's right-click menu, polling rate, profiles (New, Save, Save As, Import, Delete), **Reset Keymap** and **Apply Changes**.
   - It reads what the keypad holds when it starts, and **Apply Changes** writes only what changed, after backing up each keymap.
   - Profiles are Belkin's own v2.1.2 `.ini` format, so old Belkin profiles import as they are.
+  - **Macro editor**: the panel that slides out of the window's right edge, as in Belkin's editor: record keys (with the time between them), insert delays, mouse clicks and media keys, reorder and delete steps, and set the Macro Behavior (run 1–10 times, repeat while held, repeat until the next key, repetition interval). Saved macros (Belkin's macro file format) are assigned from an input's right-click menu.
   - **Belkin's artwork**: point the editor at your own copy of Belkin's v2.1.2 software (right-click the window → *Artwork*) and it uses Belkin's original images. They are Belkin/Razer copyright and are not part of this project; without them the editor draws its own artwork in the same layout.
 - **`n52te-config`**: the same functions from the command line (read, export, apply, macros, keymap switching, polling rate, self-test). See [docs/profile-tool-design.md](docs/profile-tool-design.md).
 

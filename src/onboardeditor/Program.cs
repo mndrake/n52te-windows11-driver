@@ -21,7 +21,7 @@ namespace N52te
             Application.SetCompatibleTextRenderingDefault(false);
 
             // Development aid: render the window (factory profile, no keypad) to a PNG and exit.
-            //   "n52te Editor.exe" --screenshot out.png [--skin SKIN_DIR] [--hover INPUT]
+            //   "n52te Editor.exe" --screenshot out.png [--skin SKIN_DIR] [--hover INPUT] [--macro]
             int i = Array.IndexOf(args, "--screenshot");
             if (i >= 0 && i + 1 < args.Length)
             {
@@ -29,7 +29,7 @@ namespace N52te
                 using (var f = new MainForm(false))
                 {
                     f.SaveScreenshot(args[i + 1], s >= 0 && s + 1 < args.Length ? args[s + 1] : null,
-                        h >= 0 && h + 1 < args.Length ? int.Parse(args[h + 1], CultureInfo.InvariantCulture) : 0);
+                        h >= 0 && h + 1 < args.Length ? int.Parse(args[h + 1], CultureInfo.InvariantCulture) : 0, Array.IndexOf(args, "--macro") >= 0);
                 }
                 return 0;
             }
