@@ -191,7 +191,7 @@ foreground app without noticeable delay.
 
 Decided on 18 Nov 2026:
 
-1. **UI technology:** WinForms on .NET 8, published as self-contained single-file `.exe`s. It
+1. **UI technology:** WinForms on .NET 10 (LTS, supported until 14 Nov 2028; .NET 8 reached end of support on 10 Nov 2026), published as single-file `.exe`s. It
    replaces the AutoHotkey editor.
 2. **Companion:** part of the first release (phase 5 work runs alongside phase 4).
 3. **Language:** English is the default UI language. Spanish follows as a translation.

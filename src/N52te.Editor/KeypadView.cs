@@ -50,6 +50,8 @@ internal sealed class KeypadView : UserControl
         Height = (int)(5.1f * (CellH + Gap));
     }
 
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public int SelectedInput
     {
         get => selected;

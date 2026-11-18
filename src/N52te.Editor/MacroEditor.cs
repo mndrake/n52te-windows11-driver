@@ -54,6 +54,8 @@ internal sealed class MacroEditor : UserControl
         Redraw(-1);
     }
 
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public List<MacroStep> Steps
     {
         get => steps.ToList();
@@ -107,6 +109,8 @@ internal sealed class KeyRecorderBox : TextBox
 
     public event EventHandler<MacroStep>? StepRecorded;
 
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public bool RecordDelays { get; set; }
 
     public KeyRecorderBox()

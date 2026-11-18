@@ -15,7 +15,7 @@ Neither app installs a driver or hooks the keyboard. The Companion reacts to hot
 
 ## Build and test
 
-Needs the .NET 8 SDK. The Windows apps can also be built on Linux/macOS with Microsoft's SDK
+Needs the .NET 10 SDK (long-term support, supported until November 2028). The Windows apps can also be built on Linux/macOS with Microsoft's SDK
 (`EnableWindowsTargeting` is set). Distribution SDKs without the Windows Desktop targets can
 only build `N52te.Core`.
 
@@ -28,7 +28,7 @@ dotnet publish src/N52te.Editor    -c Release -r win-x64 --self-contained false 
 dotnet publish src/N52te.Companion -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o out
 ```
 
-Use `--self-contained true` for builds that don't need the .NET 8 Desktop Runtime (about 70 MB each).
+Use `--self-contained true` for builds that don't need the .NET 10 Desktop Runtime (about 70 MB each).
 
 ## Status
 
