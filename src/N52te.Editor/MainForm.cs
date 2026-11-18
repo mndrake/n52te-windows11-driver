@@ -24,6 +24,7 @@ internal sealed class MainForm : Form
 
     public MainForm(string? fileToOpen)
     {
+        Dpi.Scale(this);
         Text = "n52te Editor";
         Width = 1400;
         Height = 820;
@@ -53,10 +54,15 @@ internal sealed class MainForm : Form
         };
         FormClosing += (_, e) => { if (!ConfirmDiscard()) e.Cancel = true; };
         // The action panel keeps a fixed width; set it once the window has its real size.
-        Shown += (_, _) => split.SplitterDistance = Math.Max(300, split.Width - 520);
+        Load += (_, _) => Dpi.FitToScreen(this);
+        Shown += (_, _) => split.SplitterDistance = Math.Max(LogicalToDeviceUnits(300), split.Width - LogicalToDeviceUnits(520));
 
         if (fileToOpen is not null) OpenFile(fileToOpen);
-        else LoadProfile(profile, null);
+        else
+        {
+            LoadProfile(profile, null);
+            status.Text = "Showing the factory layout. To load what your keypad does now: Keypad → Read mapping by pressing buttons.";
+        }
     }
 
     private MenuStrip BuildMenu()
@@ -74,6 +80,7 @@ internal sealed class MainForm : Form
         file.DropDownItems.Add("E&xit", null, (_, _) => Close());
 
         var keypadMenu = new ToolStripMenuItem("&Keypad");
+        keypadMenu.DropDownItems.Add("&Read mapping by pressing buttons…", null, (_, _) => ReadMapping());
         keypadMenu.DropDownItems.Add("&Save to keypad…", null, (_, _) => SaveToKeypad());
         keypadMenu.DropDownItems.Add("&Copy this keymap to…", null, (_, _) => CopyKeymap());
         keypadMenu.DropDownItems.Add("Reset this keymap to &factory", null, (_, _) => ResetKeymap());
@@ -298,10 +305,21 @@ internal sealed class MainForm : Form
             "Save to keypad", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
+    private void ReadMapping()
+    {
+        using var dialog = new DetectDialog(keymap, KeymapColors[(int)keymap]);
+        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Results.Count == 0) return;
+        foreach (var (input, action) in dialog.Results)
+            profile.Set(keymap, input, action, profile.Get(keymap, input).Options);
+        MarkDirty();
+        RefreshAll();
+        status.Text = $"Read {dialog.Results.Count} input(s) into the {keymap} keymap.";
+    }
+
     private void CopyKeymap()
     {
         var targets = Enum.GetValues<Keymap>().Where(k => k != keymap).ToArray();
-        using var form = new Form { Text = "Copy keymap", Width = 300, Height = 160, FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false };
+        using var form = new Form { AutoScaleDimensions = new SizeF(96F, 96F), AutoScaleMode = AutoScaleMode.Dpi, Text = "Copy keymap", Width = 300, Height = 160, FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MinimizeBox = false, MaximizeBox = false };
         var combo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 16, Top = 16, Width = 250 };
         foreach (var t in targets) combo.Items.Add($"Copy {keymap} to {t}");
         combo.SelectedIndex = 0;
@@ -383,6 +401,7 @@ internal sealed class AppRulesDialog : Form
 
     public AppRulesDialog(IEnumerable<AppRule> rules)
     {
+        Dpi.Scale(this);
         Text = "App rules";
         Width = 520;
         Height = 380;

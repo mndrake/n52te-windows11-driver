@@ -36,6 +36,36 @@ public static class WindowsKeys
 
     public static byte? ToFirmware(int virtualKey) => VkToFirmware.TryGetValue(virtualKey, out var code) ? code : null;
 
+    /// <summary>
+    /// Translates a Raw Input keyboard event. The E0 (extended) flag separates the grey navigation
+    /// keys from the numpad ones, Right Ctrl/Alt from the left ones, and Numpad Enter from Enter.
+    /// Returns null for keys with no firmware code and for the fake Shift events Windows inserts.
+    /// </summary>
+    public static byte? FromRawKey(int virtualKey, int makeCode, bool extended)
+    {
+        if (virtualKey is 0 or 0xFF) return null;
+        if (makeCode is 0x2A or 0x36 && extended) return null;   // fake shift around grey keys
+        switch (virtualKey)
+        {
+            case 0x10: return makeCode == 0x36 ? (byte)0x86 : (byte)0x83;
+            case 0x11: return extended ? (byte)0x8E : (byte)0x88;
+            case 0x12: return extended ? (byte)0x7F : (byte)0x7D;
+            case 0x0D: return extended ? (byte)0x74 : (byte)0x56;
+            case 0x0C: return extended ? null : (byte)0x5B;      // Clear = numpad 5 without Num Lock
+        }
+        if (!extended && NumpadWithoutNumLock.TryGetValue(virtualKey, out var numpad)) return numpad;
+        return ToFirmware(virtualKey);
+    }
+
+    /// <summary>Navigation virtual keys that come from the numpad when the E0 flag is absent.</summary>
+    private static readonly Dictionary<int, byte> NumpadWithoutNumLock = new()
+    {
+        [0x24] = 0x62, [0x26] = 0x5A, [0x21] = 0x6A,   // Home/Up/PgUp = 7/8/9
+        [0x25] = 0x63, [0x27] = 0x6B,                  // Left/Right   = 4/6
+        [0x23] = 0x64, [0x28] = 0x5C, [0x22] = 0x6C,   // End/Down/PgDn = 1/2/3
+        [0x2D] = 0x5D, [0x2E] = 0x6D,                  // Insert/Delete = 0/.
+    };
+
     public static IEnumerable<int> MappedVirtualKeys => VkToFirmware.Keys;
 }
 
