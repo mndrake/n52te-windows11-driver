@@ -54,7 +54,7 @@ the stored profile leaves silent, and can't change the keypad's keymap or LED (s
    interface (`ControlIn`, `ControlOut`) so the VM path stays available for testing.
 5. **Editor.** Edit Blue/Red/Green as the keypad's real keymaps, with "Read from keypad" and
    "Write to keypad". A keymap-switch action is written to all three keymaps, like the original
-   editor. The remapper stays optional for things only a PC can do.
+   editor. (The remapper was removed from the project on 18 Nov 2026.)
 
 ## Using `n52te-config` on Windows
 

@@ -1,30 +1,22 @@
 <#
 .SYNOPSIS
-  Builds Install-n52te.exe from the sources in src\.
+  Builds n52te-config.exe, n52te Editor.exe and Install-n52te.exe from the sources in src\.
 
 .DESCRIPTION
-  1. Checks src\editor\n52te Editor.ahk for syntax errors with AutoHotkey's /Validate.
-     The editor ships as this script plus the standard AutoHotkey64.exe interpreter,
-     not as a compiled exe (compiled AutoHotkey programs trip antivirus heuristics).
-  2. Compiles src\remapper\Program.cs (n52te_interception.exe) with the
-     .NET Framework 4.x C# compiler that ships with Windows.
-  3. Compiles src\core\*.cs and src\configtool\*.cs (n52te-config.exe), the command-line tool
-     that reads, switches and writes the keypad's onboard keymaps, and runs its self-test
-     (n52te-config selftest; uses Belkin's Default.ini too if N52TE_BELKIN_DEFAULT_INI points
-     at it). It needs UsbDk at run time, which the installer does not bundle.
-  4. Compiles src\installer\Installer.cs, embedding the editor script, AutoHotkey64.exe
-     and its license, the remapper, n52te-config and the files in src\installer\resources.
-  5. Writes the installer's SHA-256 next to it.
+  Uses the .NET Framework 4.x C# compiler that ships with Windows (C# 5); nothing else to install.
 
-  Output goes to build\. Nothing is installed.
+  1. Compiles src\core\*.cs and src\configtool\*.cs (n52te-config.exe), the command-line tool that
+     reads, switches and writes the keypad's onboard keymaps, and runs its self-test
+     (n52te-config selftest; uses Belkin's Default.ini too if N52TE_BELKIN_DEFAULT_INI points at it).
+  2. Compiles src\core\*.cs and src\onboardeditor\*.cs (n52te Editor.exe), the onboard keymap editor.
+  3. Compiles src\installer\Installer.cs (Install-n52te.exe), embedding both programs.
+  4. Writes the installer's SHA-256 next to it.
 
-  Tools needed (not committed; tools\ is git-ignored):
-    tools\ahk\AutoHotkey64.exe and tools\ahk\license.txt
-      from the AutoHotkey 2.0.30 zip: https://www.autohotkey.com/download/2.0/
+  Output goes to build\. Nothing is installed. Both programs need UsbDk at run time, which the
+  installer does not bundle.
 #>
 [CmdletBinding()]
 param(
-    [string]$AhkDir,
     [string]$OutDir,
     [string]$InstallerName = 'Install-n52te.exe'
 )
@@ -32,78 +24,52 @@ param(
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 leaves $PSScriptRoot empty inside param() defaults.
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-if (-not $AhkDir) { $AhkDir = Join-Path $root 'tools\ahk' }
 if (-not $OutDir) { $OutDir = Join-Path $root 'build' }
 $src = Join-Path $root 'src'
-$res = Join-Path $src 'installer\resources'
 $obj = Join-Path $OutDir 'obj'
 
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-$ahkExe = Join-Path $AhkDir 'AutoHotkey64.exe'
-$ahkLicense = Join-Path $AhkDir 'license.txt'
-foreach ($tool in $csc, $ahkExe, $ahkLicense) {
-    if (-not (Test-Path $tool)) { throw "Missing build tool: $tool (see the header of build.ps1)" }
-}
-
+if (-not (Test-Path $csc)) { throw "Missing the .NET Framework C# compiler: $csc" }
 New-Item -ItemType Directory -Force $obj | Out-Null
 
 function Invoke-Csc([string[]]$CscArgs) {
-    & $csc /nologo /noconfig /platform:x64 /optimize+ /utf8output @CscArgs
+    & $csc /nologo /noconfig /platform:x64 /optimize+ /utf8output /warnaserror+ @CscArgs
     if ($LASTEXITCODE -ne 0) { throw "csc failed with exit code $LASTEXITCODE" }
 }
 
-# 1. Editor (AutoHotkey v2 script): syntax check only
-Write-Host '== n52te Editor.ahk'
-$editorScript = Join-Path $src 'editor\n52te Editor.ahk'
-$errFile = Join-Path $obj 'ahk-validate.txt'
-$p = Start-Process $ahkExe -ArgumentList '/ErrorStdOut', '/Validate', "`"$editorScript`"" `
-    -Wait -PassThru -NoNewWindow -RedirectStandardError $errFile
-if ($p.ExitCode -ne 0) {
-    Get-Content $errFile | Write-Host
-    throw "The editor script has errors (AutoHotkey /Validate exit code $($p.ExitCode))"
+function Sources([string[]]$Folders) {
+    @(Get-ChildItem ($Folders | ForEach-Object { Join-Path $src $_ }) -Filter *.cs | ForEach-Object FullName)
 }
 
-# 2. Remapper (console app)
-Write-Host '== n52te_interception.exe'
-$remapperExe = Join-Path $obj 'n52te_interception.exe'
-Invoke-Csc @('/target:exe', "/out:$remapperExe", '/r:System.dll', '/r:System.Core.dll', (Join-Path $src 'remapper\Program.cs'))
-
-# 3. Keymap tool (console app)
+# 1. Keymap tool (console app) and its self-test
 Write-Host '== n52te-config.exe'
 $configExe = Join-Path $obj 'n52te-config.exe'
-$configSources = @(Get-ChildItem (Join-Path $src 'core'), (Join-Path $src 'configtool') -Filter *.cs | ForEach-Object FullName)
-Invoke-Csc (@('/target:exe', '/warnaserror+', "/out:$configExe", '/r:System.dll', '/r:System.Core.dll') + $configSources)
+Invoke-Csc (@('/target:exe', "/out:$configExe", '/r:System.dll', '/r:System.Core.dll') + (Sources 'core', 'configtool'))
 & $configExe selftest | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "n52te-config selftest failed (exit code $LASTEXITCODE)" }
 
-# 4. Installer (WinForms app with embedded payload)
+# 2. Editor (WinForms)
+Write-Host '== n52te Editor.exe'
+$editorExe = Join-Path $obj 'n52te Editor.exe'
+Invoke-Csc (@('/target:winexe', "/out:$editorExe", '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll') + (Sources 'core', 'onboardeditor'))
+
+# 3. Installer (WinForms app with both programs embedded)
 Write-Host "== $InstallerName"
 $installerExe = Join-Path $OutDir $InstallerName
-$payload = [ordered]@{
-    RES_REMAPPER    = $remapperExe
-    RES_CONFIG      = $configExe
-    RES_DLL         = Join-Path $res 'interception.dll'
-    RES_AHK         = $ahkExe
-    RES_AHK_LICENSE = $ahkLicense
-    RES_EDITOR      = $editorScript
-    RES_DRIVER      = Join-Path $res 'install-interception.exe'
-    RES_ICO         = Join-Path $res 'infomalena.ico'
-    RES_FAVICON     = Join-Path $res 'favicon.png'
-    RES_FOOTER      = Join-Path $res 'logo_footer.png'
-    RES_LOGO        = Join-Path $res 'logo.png'
-}
-$cscArgs = @(
+Invoke-Csc @(
     '/target:winexe', "/out:$installerExe",
-    "/win32icon:$(Join-Path $res 'infomalena.ico')",
     "/win32manifest:$(Join-Path $src 'installer\app.manifest')",
-    '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll',
-    '/r:System.Windows.Forms.dll', '/r:Microsoft.CSharp.dll'
+    '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll',
+    '/r:System.Management.dll', '/r:Microsoft.CSharp.dll',
+    "/resource:$editorExe,RES_EDITOR", "/resource:$configExe,RES_CONFIG",
+    (Join-Path $src 'installer\Installer.cs')
 )
-foreach ($name in $payload.Keys) { $cscArgs += "/resource:$($payload[$name]),$name" }
-$cscArgs += Join-Path $src 'installer\Installer.cs'
-Invoke-Csc $cscArgs
+foreach ($exe in $editorExe, $configExe) {
+    try { Copy-Item $exe $OutDir -Force }
+    catch { Write-Warning "couldn't update $(Split-Path -Leaf $exe) in $OutDir (is it running?); the new build is in $obj" }
+}
 
-# 5. Checksum
+# 4. Checksum
 $hash = (Get-FileHash $installerExe -Algorithm SHA256).Hash
 Set-Content -Path "$installerExe.sha256" -Value $hash -NoNewline -Encoding Ascii
 Write-Host ''

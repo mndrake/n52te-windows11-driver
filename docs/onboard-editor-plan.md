@@ -63,7 +63,7 @@ WinUSB transport).
 | Technology | **C# WinForms on .NET Framework 4.8**, one `n52te Editor.exe`, sharing a core library with `n52te-config` | The keypad code (UsbDk, image builder, decoder) is already C#; AutoHotkey can't share it cleanly. Built with the `csc` that ships with Windows, like the rest: no SDK, no runtime download, small exes. That compiler only takes C# 5, so code ported from the cloud branch is rewritten without newer syntax. |
 | Transport | **UsbDk** first, behind `IKeypadTransport`; temporary WinUSB only if UsbDk fails with Memory Integrity on | UsbDk works on hardware today and leaves the keypad on its HID driver. Standard HID is ruled out (no feature reports). WinUSB is untested: it would have to replace the driver of interface 0 (the keyboard), and it isn't known whether it passes the device-recipient requests with arbitrary `wIndex` the keypad needs. |
 | Companion tray app | **Not in the first version** | Per-app keymap switching would borrow the keypad on every window change, and showing keypad-made switches would need constant reads; neither fits a borrow-the-device transport. If wanted later, PC actions can come back as a small optional add-on: the keypad plays an unused hotkey chord (e.g. Ctrl+Alt+Shift+F1, a firmware macro) and a tray app catches it with `RegisterHotKey`, with no driver. |
-| Look | **Same layout and workflow, our own artwork** | Belkin's skin bitmaps and logos are Belkin's/Razer's; shipping them in a public repo isn't ours to do, and imitating their branding would misrepresent the project. Draw the keypad outline and controls ourselves. |
+| Look | **Belkin's window, as close as possible** (decided 18 Nov 2026): same 468 × 509 layout, positions, tabs, buttons and right-click menu, taken from `skin_English\main.ini`. **Belkin's own artwork is used when the user points the editor at their own copy** of the v2.1.2 software (right-click → Artwork); otherwise the editor draws its own artwork in the same layout | Belkin's skin bitmaps and logos are Belkin's/Razer's: loading them from the user's copy is fine, shipping them in a public repo isn't ours to do. No UI from the earlier remapper editor is reused. |
 | PC-side actions (DirectInput joystick, Load Profile, Load Application, Open Explorer, Zoom, Minimize/Maximize, Shuffle) and the **Basic / Additional Commands** (`C0`–`CE`: Cut, Copy, Paste, Undo, Find, Swap Windows, Run, …) | **Leave out** (shown greyed out, with a tooltip) | The keypad reports the PC-side actions as keyboard usage `0xC4 + n`, which Windows' keyboard driver drops; running them needs a resident filter driver like `JmtFltr`. The commands send nothing at all on hardware (17 Nov 2026). Cut/Copy/Paste etc. can still be offered as ordinary key-combination macros (Ctrl+X …) once macros are verified. |
 | Auto-switching by application, override, OSD | **Leave out of the first version** | Switching profiles means re-uploading three keymaps; the keypad stops typing for a few seconds each time. Revisit after v2.0 if wanted. |
 | Remapper + Interception | **Retire** from the installer; offer to remove them | The onboard editor replaces them. |
@@ -165,6 +165,14 @@ editor will compile the same files.
 
 ### Phase 2 – Editor main window
 
+First version built on 18 Nov 2026 in `src/onboardeditor` (`n52te Editor.exe`, compiled by
+`build.ps1`, not in the installer yet); not yet tried by a user. It covers steps 9–13 plus the
+profile row and buttons (New, Save, Save As, Import, Delete into `Documents\n52te\Profiles`),
+reads the keypad when it starts, and shows "n52te not connected" like the original. The Single
+Key dialog captures keys in the dialog itself (no global hook needed); the macro dialog takes
+the steps as text until phase 3. Auto-Switching Override and Show Changes On Screen are drawn but
+not available.
+
 9. Main window laid out like the original: keypad drawing, Map 1/2/3 tabs (blue / red / green,
    firmware keymaps 0/1/2), the 27 labelled input boxes, active keymap shown from the keypad.
 10. Right-click menu with the firmware-run items: Single Key, Macro, Keymap (all three keymaps),
@@ -192,9 +200,19 @@ editor will compile the same files.
 
 ### Phase 5 – Installer and migration
 
-18. Installer: install the editor and `n52te-config`, bundle UsbDk (consent + restart), stop
-    installing Interception and the remapper. On upgrade, stop and remove the remapper, its
-    autostart entry and shortcuts, and offer to uninstall Interception (restart).
+On 18 Nov 2026 the user asked to scrap all UI from the forked repository. Removed from `main`:
+the AutoHotkey editor (`src/editor`), the Interception remapper (`src/remapper`), the installer's
+Interception files and INFOMALENA branding (`src/installer/resources`), the v1 screenshots and
+logo, and the committed v1.3 `Install-n52te.exe` (still in release v1.3.0; source at the
+`v1.3.0` tag). The installer was rewritten (own UI) and README / INSTALL describe version 2.
+
+18. ~~Installer: install the editor and `n52te-config`, stop installing Interception and the
+    remapper; on upgrade remove the remapper, its autostart and shortcuts, and offer to remove
+    Interception.~~ Done in `src/installer/Installer.cs` (18 Nov 2026), not yet run on a PC.
+    Interception is removed in the safe order: restore point, then its entries out of the
+    keyboard/mouse filter lists (keeping `kbdclass` / `mouclass`), then its services, then its
+    files (kept in `C:\ProgramData\n52te\removed-drivers`). Still to do: bundle UsbDk (now the
+    installer links to its download page), an uninstall entry in *Settings → Apps*.
 19. Existing remapper settings can't be carried over one-to-one (typed text, launching
     programs). Show them once in a read-only list so they can be re-created on the keypad.
 

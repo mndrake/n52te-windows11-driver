@@ -1,705 +1,506 @@
-﻿// Recovered by decompiling the installer from Instalar-n52te.exe v1.1.0 (ILSpy 11.2, C# 5).
-// Build with build.ps1. User-facing text translated to US English.
-
+﻿// Install-n52te.exe: installs the n52te Editor and n52te-config into C:\Program Files\n52te, and
+// cleans up after earlier versions: the AutoHotkey editor, the Interception remapper and its
+// autostart, old Belkin driver leftovers and, if the user agrees, the Interception driver itself.
+// Built by build.ps1 with the in-box .NET Framework compiler (C# 5); runs as administrator
+// (app.manifest).
+//
+// Safety: the keyboard and mouse class filter lists must always keep kbdclass / mouclass. A list
+// that names a filter whose driver is gone stops every keyboard (or mouse) from starting, so the
+// Interception entries are removed from the lists *before* its services and files, and a restore
+// point is made first. See docs/onboard-editor-plan.md, "Safety rules".
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Management;
 using System.Reflection;
-using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-[assembly: CompilationRelaxations(8)]
-[assembly: RuntimeCompatibility(WrapNonExceptionThrows = true)]
-[assembly: AssemblyVersion("0.0.0.0")]
+[assembly: AssemblyTitle("n52te Editor Setup")]
+[assembly: AssemblyVersion("2.0.0.0")]
+
 internal static class Installer
 {
-	private const string INSTALL_DIR = "C:\\Program Files\\n52te";
+    private const string InstallDir = @"C:\Program Files\n52te";
+    private const string EditorExe = "n52te Editor.exe";
+    private const string ConfigExe = "n52te-config.exe";
+    private const string UsbDkHelper = @"C:\Program Files\UsbDk Runtime Library\UsbDkHelper.dll";
+    private const string UsbDkPage = "https://github.com/daynix/UsbDk/releases/tag/v1.0.22";
+    private const string KeyboardClass = @"SYSTEM\CurrentControlSet\Control\Class\{4D36E96B-E325-11CE-BFC1-08002BE10318}";
+    private const string MouseClass = @"SYSTEM\CurrentControlSet\Control\Class\{4D36E96F-E325-11CE-BFC1-08002BE10318}";
 
-	private static TextBox log;
+    private static readonly string[,] Payload = { { "RES_EDITOR", EditorExe }, { "RES_CONFIG", ConfigExe } };
 
-	private static Button btnInstall;
+    // Files of earlier versions (remapper, AutoHotkey editor, branding, compiled editors).
+    private static readonly string[] OldFiles =
+    {
+        "n52te_interception.exe", "interception.dll", "install-interception.exe", "AutoHotkey64.exe", "AutoHotkey license.txt",
+        "n52te Editor.ahk", "Editor n52te.ahk", "Editor n52te.exe", "infomalena.ico", "favicon.png", "logo_footer.png", "n52.ico", "n52te_config.ini",
+    };
 
-	private static Button btnReboot;
+    private static Form window;
+    private static TextBox log;
+    private static Button install, restart, close;
+    private static bool needRestart;
 
-	private static Button btnClose;
+    [STAThread]
+    private static void Main()
+    {
+        Application.EnableVisualStyles();
+        Color back = Color.FromArgb(16, 17, 20), field = Color.FromArgb(24, 26, 30), text = Color.FromArgb(225, 228, 232);
+        window = new Form
+        {
+            Text = "n52te Editor Setup", ClientSize = new Size(620, 440), StartPosition = FormStartPosition.CenterScreen,
+            FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, BackColor = back, ForeColor = text,
+            Font = new Font("Segoe UI", 9f), AutoScaleMode = AutoScaleMode.Font,
+        };
+        var title = new Label { Text = "n52te Editor", Font = new Font("Segoe UI", 15f, FontStyle.Bold), ForeColor = Color.FromArgb(120, 180, 240), Location = new Point(18, 12), AutoSize = true };
+        var intro = new Label
+        {
+            Location = new Point(20, 50), Size = new Size(580, 52), ForeColor = Color.FromArgb(170, 174, 180),
+            Text = "Installs the n52te Editor, which writes your keymaps into the Belkin n52te so the keypad runs them itself, and n52te-config, its command-line tool. " +
+                   "Removes what earlier versions installed (the remapper, its editor and, if you agree, the Interception driver).",
+        };
+        log = new TextBox
+        {
+            Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Location = new Point(20, 108), Size = new Size(580, 270),
+            BackColor = field, ForeColor = text, Font = new Font("Consolas", 9f), BorderStyle = BorderStyle.FixedSingle,
+        };
+        install = MakeButton("Install", new Point(20, 392), 140);
+        install.BackColor = Color.FromArgb(40, 90, 150);
+        restart = MakeButton("Restart now", new Point(340, 392), 130);
+        restart.Enabled = false;
+        close = MakeButton("Close", new Point(480, 392), 120);
+        install.Click += (s, e) =>
+        {
+            install.Enabled = false;
+            close.Enabled = false;
+            new Thread(Run) { IsBackground = true }.Start();
+        };
+        restart.Click += (s, e) => { try { Process.Start("shutdown", "/r /t 5"); } catch (Exception) { } };
+        close.Click += (s, e) => window.Close();
+        window.Controls.AddRange(new Control[] { title, intro, log, install, restart, close });
+        Log("Ready. Click Install. (Your n52te can stay plugged in.)");
+        Application.Run(window);
+    }
 
-	private static bool needReboot = false;
+    private static Button MakeButton(string text, Point at, int width)
+    {
+        return new Button { Text = text, Location = at, Size = new Size(width, 34), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 42, 48), ForeColor = Color.White };
+    }
 
-	// The editor ships as the standard AutoHotkey v2 interpreter plus its readable script,
-	// not as a compiled exe: compiled AutoHotkey programs trip antivirus heuristics
-	// (Microsoft Defender flagged one build as Program:Win32/Contebrew.A!ml).
-	private const string AHK_EXE = "AutoHotkey64.exe";
+    private static void Ui(Action a)
+    {
+        if (window.InvokeRequired) window.Invoke(a); else a();
+    }
 
-	private const string EDITOR_SCRIPT = "n52te Editor.ahk";
+    private static void Log(string s) { Ui(() => log.AppendText(s + "\r\n")); }
 
-	// Reads, switches and writes the keypad's onboard keymaps. Needs UsbDk (not bundled).
-	private const string CONFIG_EXE = "n52te-config.exe";
+    private static bool Ask(string question)
+    {
+        bool yes = false;
+        Ui(() => yes = MessageBox.Show(window, question, "n52te Editor Setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes);
+        return yes;
+    }
 
-	private const string USBDK_HELPER = "C:\\Program Files\\UsbDk Runtime Library\\UsbDkHelper.dll";
+    private static void Run()
+    {
+        try
+        {
+            Log("== 1/6 Closing n52te programs ==");
+            StopPrograms();
 
-	private static readonly string[,] PAYLOAD = new string[10, 2]
-	{
-		{ "RES_REMAPPER", "n52te_interception.exe" },
-		{ "RES_CONFIG", CONFIG_EXE },
-		{ "RES_DLL", "interception.dll" },
-		{ "RES_AHK", AHK_EXE },
-		{ "RES_AHK_LICENSE", "AutoHotkey license.txt" },
-		{ "RES_EDITOR", EDITOR_SCRIPT },
-		{ "RES_DRIVER", "install-interception.exe" },
-		{ "RES_ICO", "infomalena.ico" },
-		{ "RES_FAVICON", "favicon.png" },
-		{ "RES_FOOTER", "logo_footer.png" }
-	};
+            Log("== 2/6 Removing the earlier version (remapper and its editor) ==");
+            RemoveOldVersion();
 
-	[STAThread]
-	private static void Main()
-	{
-		Application.EnableVisualStyles();
-		Form form = new Form();
-		form.Text = "Install n52te for Windows 11";
-		form.Width = 640;
-		form.Height = 480;
-		form.StartPosition = FormStartPosition.CenterScreen;
-		form.FormBorderStyle = FormBorderStyle.FixedDialog;
-		form.MaximizeBox = false;
-		form.BackColor = Color.FromArgb(30, 30, 30);
-		Form form2 = form;
-		try
-		{
-			using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("RES_ICO"))
-			{
-				if (stream != null)
-				{
-					form2.Icon = new Icon(stream);
-				}
-			}
-		}
-		catch
-		{
-		}
-		PictureBox pictureBox = new PictureBox();
-		pictureBox.Left = 530;
-		pictureBox.Top = 10;
-		pictureBox.Width = 80;
-		pictureBox.Height = 80;
-		pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
-		PictureBox pictureBox2 = pictureBox;
-		try
-		{
-			using (Stream stream2 = Assembly.GetExecutingAssembly().GetManifestResourceStream("RES_LOGO"))
-			{
-				if (stream2 != null)
-				{
-					pictureBox2.Image = Image.FromStream(stream2);
-				}
-			}
-		}
-		catch
-		{
-		}
-		Label label = new Label();
-		label.Text = "Belkin n52te Keypad Installer";
-		label.ForeColor = Color.White;
-		label.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
-		label.Left = 18;
-		label.Top = 14;
-		label.Width = 500;
-		label.Height = 28;
-		Label value = label;
-		Label label2 = new Label();
-		label2.Text = "Installs the driver, the remapper and the editor, and leaves the n52te ready to use.\nRequires administrator rights (UAC) and may ask you to restart at the end.\nby INFOMALENA Software Development";
-		label2.ForeColor = Color.Silver;
-		label2.Font = new Font("Segoe UI", 8.5f);
-		label2.Left = 20;
-		label2.Top = 42;
-		label2.Width = 500;
-		label2.Height = 44;
-		Label value2 = label2;
-		TextBox textBox = new TextBox();
-		textBox.Multiline = true;
-		textBox.ReadOnly = true;
-		textBox.ScrollBars = ScrollBars.Vertical;
-		textBox.Left = 20;
-		textBox.Top = 86;
-		textBox.Width = 584;
-		textBox.Height = 286;
-		textBox.BackColor = Color.FromArgb(20, 20, 20);
-		textBox.ForeColor = Color.FromArgb(120, 230, 140);
-		textBox.Font = new Font("Consolas", 9f);
-		textBox.BorderStyle = BorderStyle.FixedSingle;
-		log = textBox;
-		Button button = new Button();
-		button.Text = "Install";
-		button.Left = 20;
-		button.Top = 384;
-		button.Width = 160;
-		button.Height = 40;
-		button.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
-		button.BackColor = Color.FromArgb(45, 125, 70);
-		button.ForeColor = Color.White;
-		button.FlatStyle = FlatStyle.Flat;
-		btnInstall = button;
-		Button button2 = new Button();
-		button2.Text = "Restart now";
-		button2.Left = 330;
-		button2.Top = 386;
-		button2.Width = 140;
-		button2.Height = 36;
-		button2.Font = new Font("Segoe UI", 10f);
-		button2.Enabled = false;
-		button2.BackColor = Color.FromArgb(60, 60, 60);
-		button2.ForeColor = Color.White;
-		button2.FlatStyle = FlatStyle.Flat;
-		btnReboot = button2;
-		Button button3 = new Button();
-		button3.Text = "Close";
-		button3.Left = 480;
-		button3.Top = 386;
-		button3.Width = 120;
-		button3.Height = 36;
-		button3.Font = new Font("Segoe UI", 10f);
-		button3.BackColor = Color.FromArgb(60, 60, 60);
-		button3.ForeColor = Color.White;
-		button3.FlatStyle = FlatStyle.Flat;
-		btnClose = button3;
-		btnInstall.Click += (object s, EventArgs e) =>
-		{
-			btnInstall.Enabled = false;
-			Thread thread = new Thread(RunInstall);
-			thread.IsBackground = true;
-			thread.Start();
-		};
-		if (Environment.CommandLine.IndexOf("/auto", StringComparison.OrdinalIgnoreCase) >= 0)
-		{
-			form2.Shown += (object s, EventArgs e) =>
-			{
-				btnInstall.Enabled = false;
-				Thread thread = new Thread(RunInstall);
-				thread.IsBackground = true;
-				thread.Start();
-			};
-		}
-		btnReboot.Click += (object s, EventArgs e) =>
-		{
-			try
-			{
-				Process.Start("shutdown", "/r /t 3");
-			}
-			catch
-			{
-			}
-		};
-		btnClose.Click += (object s, EventArgs e) =>
-		{
-			Application.Exit();
-		};
-		form2.Controls.Add(pictureBox2);
-		form2.Controls.Add(value);
-		form2.Controls.Add(value2);
-		form2.Controls.Add(log);
-		form2.Controls.Add(btnInstall);
-		form2.Controls.Add(btnReboot);
-		form2.Controls.Add(btnClose);
-		Log("Ready to install. Click 'Install'.");
-		Application.Run(form2);
-	}
+            Log("== 3/6 Removing old Belkin driver leftovers ==");
+            CleanBelkin();
+            CleanBelkinFilter();
 
-	private static void Log(string s)
-	{
-		if (log.InvokeRequired)
-		{
-			log.Invoke((Action)(() =>
-			{
-				Log(s);
-			}));
-		}
-		else
-		{
-			log.AppendText(s + "\r\n");
-		}
-	}
+            Log("== 4/6 Interception driver ==");
+            RemoveInterception();
 
-	private static void SetReboot(bool on)
-	{
-		if (btnReboot.InvokeRequired)
-		{
-			btnReboot.Invoke((Action)(() =>
-			{
-				SetReboot(on);
-			}));
-		}
-		else
-		{
-			btnReboot.Enabled = on;
-			btnReboot.BackColor = (on ? Color.FromArgb(180, 110, 30) : Color.FromArgb(60, 60, 60));
-		}
-	}
+            Log("== 5/6 Installing ==");
+            Directory.CreateDirectory(InstallDir);
+            for (int i = 0; i < Payload.GetLength(0); i++)
+            {
+                Extract(Payload[i, 0], Path.Combine(InstallDir, Payload[i, 1]));
+                Log("   " + Path.Combine(InstallDir, Payload[i, 1]));
+            }
+            foreach (string old in OldFiles) DeleteFile(Path.Combine(InstallDir, old));
+            MakeShortcuts();
 
-	private static void RunInstall()
-	{
-		try
-		{
-			Log("== 1/6 Preparing the install folder ==");
-			Directory.CreateDirectory("C:\\Program Files\\n52te");
-			Log("   C:\\Program Files\\n52te");
-			Log("== 2/6 Extracting files ==");
-			StopRunningEditors();
-			for (int i = 0; i < PAYLOAD.GetLength(0); i++)
-			{
-				string outPath = Path.Combine("C:\\Program Files\\n52te", PAYLOAD[i, 1]);
-				Extract(PAYLOAD[i, 0], outPath);
-				Log("   " + PAYLOAD[i, 1]);
-			}
-			CleanStale();
-			Log("== 3/6 Removing old Belkin driver leftovers ==");
-			CleanBelkin();
-			CleanBelkinFilter();
-			Log("== 4/6 Interception driver ==");
-			string exe = Path.Combine("C:\\Program Files\\n52te", "install-interception.exe");
-			if (DriverInstalled() && DriverRunningOnce())
-			{
-				Log("   already installed and running: not reinstalling (no restart needed).");
-			}
-			else
-			{
-				int num = Run(exe, "/install");
-				Log("   install-interception /install -> exit code " + num);
-			}
-			Log("== 5/6 Creating configuration and shortcuts ==");
-			CreateDefaultConfig();
-			// The editor shortcut runs: AutoHotkey64.exe "C:\Program Files\n52te\n52te Editor.ahk"
-			string text = Path.Combine("C:\\Program Files\\n52te", AHK_EXE);
-			string editorArgs = "\"" + Path.Combine("C:\\Program Files\\n52te", EDITOR_SCRIPT) + "\"";
-			string icon = Path.Combine("C:\\Program Files\\n52te", "infomalena.ico");
-			string text2 = Path.Combine("C:\\Program Files\\n52te", "n52te_interception.exe");
-			string text3 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "n52te");
-			Directory.CreateDirectory(text3);
-			string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
-			// Remove the Spanish-named shortcuts left by v1.1.0 and earlier.
-			DeleteOldShortcut(Path.Combine(text3, "Editor n52te.lnk"));
-			DeleteOldShortcut(Path.Combine(text3, "Remapeador n52te.lnk"));
-			DeleteOldShortcut(Path.Combine(folderPath, "Editor n52te.lnk"));
-			MakeShortcut(Path.Combine(text3, "n52te Editor.lnk"), text, editorArgs, "C:\\Program Files\\n52te", icon, "n52te button editor");
-			MakeShortcut(Path.Combine(folderPath, "n52te Editor.lnk"), text, editorArgs, "C:\\Program Files\\n52te", icon, "n52te button editor");
-			MakeShortcut(Path.Combine(text3, "n52te Remapper.lnk"), text2, "", "C:\\Program Files\\n52te", icon, "n52te remapper (runs in the background)");
-			// A command prompt with n52te-config on its PATH, showing the keypad's state and the commands.
-			string cmdExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
-			string configArgs = "/k \"set \"PATH=C:\\Program Files\\n52te;%PATH%\" & n52te-config info & echo. & n52te-config\"";
-			MakeShortcut(Path.Combine(text3, "n52te Keymaps (command prompt).lnk"), cmdExe, configArgs, "C:\\Program Files\\n52te", icon, "Read, switch and write the n52te's onboard keymaps (needs UsbDk)");
-			Log("   shortcuts created on the Desktop and in the Start menu");
-			if (File.Exists(USBDK_HELPER))
-			{
-				Log("   UsbDk found: n52te-config can read and write the keypad's onboard keymaps.");
-			}
-			else
-			{
-				Log("   (optional) n52te-config needs UsbDk to reach the keypad's onboard keymaps:");
-				Log("   install UsbDk 1.0.22 x64 from github.com/daynix/UsbDk/releases, then restart.");
-			}
-			Log("== 6/6 Checking the driver ==");
-			if (DriverRunning())
-			{
-				Log("   The driver is already RUNNING.");
-				Log("   Starting the remapper...");
-				try
-				{
-					// Start it through Explorer so it runs as the normal user, not as admin like
-					// this installer. Users can edit its config, and the config can launch
-					// programs ("run" actions), so the remapper must never run elevated.
-					Process.Start("explorer.exe", "\"" + text2 + "\"");
-				}
-				catch (Exception ex)
-				{
-					Log("   (couldn't start it: " + ex.Message + ")");
-				}
-				Log("");
-				Log("==========================================================");
-				Log(" INSTALLATION COMPLETE. The n52te is ready to use.");
-				Log(" Open 'n52te Editor' (on the Desktop) to configure the buttons.");
-				Log(" To keep it always on, check 'Start the remapper with Windows'.");
-				Log("==========================================================");
-			}
-			else
-			{
-				needReboot = true;
-				SetReboot(true);
-				Log("   The driver needs a RESTART to activate.");
-				Log("");
-				Log("==========================================================");
-				Log(" ALMOST DONE: restart the computer to activate the driver.");
-				Log(" Click 'Restart now', or restart whenever you like.");
-				Log(" After restarting, open 'n52te Editor' and check");
-				Log(" 'Start the remapper with Windows' so the n52te always works.");
-				Log("==========================================================");
-			}
-		}
-		catch (Exception ex)
-		{
-			Log("[ERROR] " + ex.Message);
-			Log("If the problem persists, open an issue and include the text shown here.");
-		}
-	}
+            Log("== 6/6 UsbDk ==");
+            CheckUsbDk();
 
-	private static void Extract(string res, string outPath)
-	{
-		Assembly executingAssembly = Assembly.GetExecutingAssembly();
-		using (Stream stream = executingAssembly.GetManifestResourceStream(res))
-		{
-			if (stream == null)
-			{
-				throw new Exception("resource not found: " + res);
-			}
-			int num = 0;
-			while (true)
-			{
-				bool flag = true;
-				try
-				{
-					using (FileStream destination = File.Create(outPath))
-					{
-						stream.CopyTo(destination);
-						break;
-					}
-				}
-				catch (IOException)
-				{
-					if (num >= 3)
-					{
-						throw;
-					}
-					TryStopPath(outPath);
-					Thread.Sleep(600);
-					stream.Position = 0L;
-				}
-				num++;
-			}
-		}
-	}
+            Log("");
+            if (needRestart)
+            {
+                Ui(() => { restart.Enabled = true; restart.BackColor = Color.FromArgb(170, 110, 30); });
+                Log("DONE. Restart Windows to finish removing the old driver, then open 'n52te Editor'.");
+            }
+            else Log("DONE. Open 'n52te Editor' from the Start menu or the Desktop.");
+        }
+        catch (Exception ex)
+        {
+            Log("[ERROR] " + ex.Message);
+            Log("Nothing more was changed after this error. Please open an issue with the text shown here.");
+        }
+        finally
+        {
+            Ui(() => close.Enabled = true);
+        }
+    }
 
-	// Stops only processes running this exact file, so an AutoHotkey64.exe the user runs
-	// elsewhere (their own scripts) is never touched.
-	private static void TryStopPath(string fullPath)
-	{
-		try
-		{
-			foreach (Process process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(fullPath)))
-			{
-				try
-				{
-					if (string.Equals(process.MainModule.FileName, fullPath, StringComparison.OrdinalIgnoreCase))
-					{
-						process.Kill();
-						process.WaitForExit(2000);
-					}
-				}
-				catch
-				{
-				}
-			}
-		}
-		catch
-		{
-		}
-	}
+    // ---- earlier versions ----
 
-	// Closes the editor before its files are replaced: this version's (AutoHotkey64.exe in
-	// the install folder) and the compiled editors of earlier versions.
-	private static void StopRunningEditors()
-	{
-		TryStopPath(Path.Combine("C:\\Program Files\\n52te", AHK_EXE));
-		TryStop("n52te Editor");
-		TryStop("Editor n52te");
-	}
+    private static void StopPrograms()
+    {
+        foreach (string name in new[] { "n52te Editor", "Editor n52te", "n52te_interception" }) Stop(name);
+        StopPath(Path.Combine(InstallDir, "AutoHotkey64.exe")); // only the copy in our folder, never the user's own AutoHotkey
+    }
 
-	private static void TryStop(string procName)
-	{
-		try
-		{
-			Process[] processesByName = Process.GetProcessesByName(procName);
-			foreach (Process process in processesByName)
-			{
-				process.Kill();
-				process.WaitForExit(2000);
-			}
-		}
-		catch
-		{
-		}
-	}
+    private static void Stop(string processName)
+    {
+        foreach (Process p in Process.GetProcessesByName(processName))
+        {
+            try { p.Kill(); p.WaitForExit(3000); Log("   closed " + processName); } catch (Exception) { }
+        }
+    }
 
-	private static void CleanBelkin()
-	{
-		string text = RunCapture("pnputil", "/enum-drivers");
-		string[] array = text.Replace("\r", "").Split('\n');
-		string text2 = null;
-		int num = 0;
-		string[] array2 = array;
-		foreach (string text3 in array2)
-		{
-			string text4 = text3.Trim();
-			int num2 = text4.IndexOf("oem", StringComparison.OrdinalIgnoreCase);
-			if (num2 >= 0 && text4.EndsWith(".inf", StringComparison.OrdinalIgnoreCase))
-			{
-				int num3 = text4.IndexOf(':');
-				text2 = ((num3 >= 0) ? text4.Substring(num3 + 1) : text4).Trim();
-			}
-			if ((text4.IndexOf("jmtflter", StringComparison.OrdinalIgnoreCase) >= 0 || text4.IndexOf("jmtfltr", StringComparison.OrdinalIgnoreCase) >= 0 || (text4.IndexOf("usbicp", StringComparison.OrdinalIgnoreCase) >= 0 && text2 != null) || text4.IndexOf("vhidmini", StringComparison.OrdinalIgnoreCase) >= 0) && text2 != null && text2.StartsWith("oem", StringComparison.OrdinalIgnoreCase))
-			{
-				Log("   removing " + text2 + " ...");
-				Run("pnputil", "/delete-driver " + text2 + " /uninstall /force");
-				num++;
-				text2 = null;
-			}
-		}
-		if (num == 0)
-		{
-			Log("   (no Belkin driver leftovers found)");
-		}
-	}
+    private static void StopPath(string fullPath)
+    {
+        foreach (Process p in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(fullPath)))
+        {
+            try
+            {
+                if (string.Equals(p.MainModule.FileName, fullPath, StringComparison.OrdinalIgnoreCase)) { p.Kill(); p.WaitForExit(3000); Log("   closed " + fullPath); }
+            }
+            catch (Exception) { }
+        }
+    }
 
-	[System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
-	private static extern bool MoveFileEx(string existing, string newName, int flags);
+    private static void RemoveOldVersion()
+    {
+        int found = 0;
+        // The old editor's "Start the remapper with Windows" (per user).
+        using (RegistryKey run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+        {
+            string v = run == null ? null : run.GetValue("n52te") as string;
+            if (v != null && v.IndexOf("n52te_interception", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                run.DeleteValue("n52te", false);
+                Log("   removed the remapper's autostart");
+                found++;
+            }
+        }
+        string menu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "n52te");
+        string desktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+        foreach (string lnk in new[]
+        {
+            Path.Combine(menu, "n52te Remapper.lnk"), Path.Combine(menu, "Editor n52te.lnk"), Path.Combine(menu, "Remapeador n52te.lnk"),
+            Path.Combine(menu, "n52te Editor.lnk"), Path.Combine(desktop, "n52te Editor.lnk"), Path.Combine(desktop, "Editor n52te.lnk"),
+        })
+            if (DeleteFile(lnk)) found++;
+        foreach (string old in OldFiles) if (DeleteFile(Path.Combine(InstallDir, old))) found++;
+        string settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "n52te", "n52te_config.ini");
+        if (File.Exists(settings)) Log("   kept the old remapper's button settings in " + settings + " (the new editor doesn't use them)");
+        if (found == 0) Log("   (no earlier version found)");
+    }
 
-	private const int MOVEFILE_DELAY_UNTIL_REBOOT = 4;
+    private static bool DeleteFile(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return false;
+            File.Delete(path);
+            Log("   removed " + path);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log("   (couldn't remove " + path + ": " + ex.Message + ")");
+            return false;
+        }
+    }
 
-	// Deleting the Belkin driver packages (above) leaves Belkin's USB filter behind: the
-	// "jmtfltr" service, JmtFltr.sys, and LowerFilters entries on the n52te's device nodes.
-	// On PCs where Memory Integrity is off the 2008 filter still loads, and a stale filter
-	// entry can keep the keypad's mouse interface (the wheel) from starting.
-	// See docs/original-driver-analysis.md.
-	private static void CleanBelkinFilter()
-	{
-		int removed = 0;
-		foreach (string iface in new string[2] { "VID_050D&PID_0200&MI_00", "VID_050D&PID_0200&MI_01" })
-		{
-			try
-			{
-				using (RegistryKey parent = Registry.LocalMachine.OpenSubKey("SYSTEM\\CurrentControlSet\\Enum\\USB\\" + iface))
-				{
-					if (parent == null)
-					{
-						continue;
-					}
-					foreach (string instance in parent.GetSubKeyNames())
-					{
-						using (RegistryKey node = parent.OpenSubKey(instance))
-						{
-							string[] filters = (node == null) ? null : (node.GetValue("LowerFilters") as string[]);
-							if (filters == null || Array.FindIndex(filters, (string f) => string.Equals(f, "JmtFltr", StringComparison.OrdinalIgnoreCase)) < 0)
-							{
-								continue;
-							}
-						}
-						// Removing the node drops its filter entries; Windows sets it up again
-						// with its standard driver on the next scan or replug.
-						string id = "USB\\" + iface + "\\" + instance;
-						int code = Run("pnputil", "/remove-device \"" + id + "\"");
-						Log("   removed device entry with the old Belkin filter: " + id + " (code " + code + ")");
-						removed++;
-					}
-				}
-			}
-			catch (Exception ex)
-			{
-				Log("   (couldn't check " + iface + ": " + ex.Message + ")");
-			}
-		}
-		if (removed > 0)
-		{
-			Run("pnputil", "/scan-devices");
-		}
-		using (RegistryKey svc = Registry.LocalMachine.OpenSubKey("SYSTEM\\CurrentControlSet\\Services\\jmtfltr"))
-		{
-			if (svc == null)
-			{
-				if (removed == 0)
-				{
-					Log("   (no Belkin filter leftovers found)");
-				}
-				return;
-			}
-		}
-		int sc = Run("sc", "delete jmtfltr");
-		Log("   removed the old Belkin filter service jmtfltr (sc delete -> code " + sc + ")");
-		string sys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers\\JmtFltr.sys");
-		if (File.Exists(sys))
-		{
-			try
-			{
-				File.Delete(sys);
-				Log("   deleted " + sys);
-			}
-			catch
-			{
-				// Still loaded: delete it during the next restart.
-				bool ok = MoveFileEx(sys, null, MOVEFILE_DELAY_UNTIL_REBOOT);
-				Log(ok ? "   " + sys + " is in use; it will be deleted at the next restart" : "   (couldn't delete " + sys + ")");
-			}
-		}
-	}
+    // ---- Interception ----
 
-	private static void CreateDefaultConfig()
-	{
-		string text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "n52te");
-		Directory.CreateDirectory(text);
-		// The editor and the remapper run as the normal (non-admin) user and must be able
-		// to write here: n52te_config.ini, teclados.txt and aprender.req/.res. Files this
-		// installer creates as admin are otherwise read-only for them ("Access is denied").
-		// /T also fixes files left by earlier versions. S-1-5-32-545 = BUILTIN\Users.
-		int num = Run("icacls", "\"" + text + "\" /grant *S-1-5-32-545:(OI)(CI)M /T /Q");
-		Log((num == 0) ? "   gave users write access to " + text : "   (couldn't set permissions on " + text + ": icacls exit code " + num + ")");
-		string text2 = Path.Combine(text, "n52te_config.ini");
-		if (File.Exists(text2))
-		{
-			Log("   kept the existing configuration (" + text2 + ")");
-			return;
-		}
-		string[] contents = new string[21]
-		{
-			"[Botones]", "B01=key|Enter", "B02=key|F14", "B03=key|F15", "B04=key|F16", "B05=key|F17", "B06=key|F18", "B07=key|F19", "B08=key|F20", "B09=key|F21",
-			"B10=key|F22", "B11=key|F23", "B12=key|F24", "B13=key|Media_Play_Pause", "B14=key|Volume_Mute", "BALT=none|", "BDOWN=none|", "BESP=none|", "BLEFT=none|", "BRIGHT=none|",
-			"BUP=none|"
-		};
-		File.WriteAllLines(text2, contents);
-		Log("   created the default configuration");
-	}
+    private static string[] Filters(string classKey)
+    {
+        using (RegistryKey k = Registry.LocalMachine.OpenSubKey(classKey))
+            return k == null ? new string[0] : (k.GetValue("UpperFilters") as string[] ?? new string[0]);
+    }
 
-	private static void CleanStale()
-	{
-		// Compiled editors of earlier versions: "Editor n52te.exe" (v1.1.0 and earlier, Spanish)
-		// and "n52te Editor.exe" (first English builds). AutoHotkey64.exe is current again.
-		string[] array = new string[5] { "Editor n52te.ahk", "Editor n52te.exe", "n52te Editor.exe", "n52.ico", "n52te_config.ini" };
-		string[] array2 = array;
-		foreach (string text in array2)
-		{
-			try
-			{
-				string path = Path.Combine("C:\\Program Files\\n52te", text);
-				if (File.Exists(path))
-				{
-					File.Delete(path);
-					Log("   removed old file: " + text);
-				}
-			}
-			catch
-			{
-			}
-		}
-	}
+    private static bool ServiceExists(string name)
+    {
+        using (RegistryKey k = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + name)) return k != null;
+    }
 
-	private static void DeleteOldShortcut(string lnk)
-	{
-		try
-		{
-			if (File.Exists(lnk))
-			{
-				File.Delete(lnk);
-				Log("   removed old shortcut: " + Path.GetFileName(lnk));
-			}
-		}
-		catch
-		{
-		}
-	}
+    private static bool Names(string[] list, string name)
+    {
+        return Array.FindIndex(list, f => string.Equals(f, name, StringComparison.OrdinalIgnoreCase)) >= 0;
+    }
 
-	private static bool DriverRunningOnce()
-	{
-		string text = RunCapture("sc", "query keyboard");
-		return text.IndexOf("RUNNING", StringComparison.OrdinalIgnoreCase) >= 0;
-	}
+    private static void RemoveInterception()
+    {
+        string drivers = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers");
+        string[] kbd = Filters(KeyboardClass), mou = Filters(MouseClass);
+        bool present = Names(kbd, "keyboard") || Names(mou, "mouse") || ServiceExists("keyboard") || ServiceExists("mouse")
+            || File.Exists(Path.Combine(drivers, "keyboard.sys")) || File.Exists(Path.Combine(drivers, "mouse.sys"));
+        if (!present)
+        {
+            Log("   not installed");
+            return;
+        }
+        Log("   found (keyboard filter list: " + string.Join(", ", kbd) + "; mouse: " + string.Join(", ", mou) + ")");
+        if (!Ask("The Interception driver from the earlier version is still installed. The new editor doesn't need it, and Windows can't turn on Memory Integrity while it is there.\n\n" +
+                 "Remove it now? A restore point is created first, and Windows needs a restart afterwards."))
+        {
+            Log("   kept (you can remove it later by running this installer again)");
+            return;
+        }
+        if (!CreateRestorePoint("Before removing Interception (n52te)") &&
+            !Ask("Windows didn't create a restore point (it allows one per 24 hours, or System Protection is off). Remove Interception anyway?"))
+        {
+            Log("   kept");
+            return;
+        }
 
-	private static bool DriverInstalled()
-	{
-		try
-		{
-			using (RegistryKey registryKey = Registry.LocalMachine.OpenSubKey("SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e96b-e325-11ce-bfc1-08002be10318}"))
-			{
-				if (registryKey == null)
-				{
-					return false;
-				}
-				string[] array = registryKey.GetValue("UpperFilters") as string[];
-				if (array == null)
-				{
-					return false;
-				}
-				string[] array2 = array;
-				foreach (string a in array2)
-				{
-					if (string.Equals(a, "keyboard", StringComparison.OrdinalIgnoreCase))
-					{
-						return true;
-					}
-				}
-			}
-		}
-		catch
-		{
-		}
-		return false;
-	}
+        // 1. Take Interception out of the filter lists first, keeping Windows' own class drivers.
+        SetFilters(KeyboardClass, kbd, "keyboard", "kbdclass");
+        SetFilters(MouseClass, mou, "mouse", "mouclass");
+        // 2. Then its services, 3. then its files (kept in a backup folder).
+        foreach (string svc in new[] { "keyboard", "mouse" })
+            if (ServiceExists(svc)) Log("   sc delete " + svc + " -> exit code " + RunProcess("sc", "delete " + svc));
+        string backup = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "n52te", "removed-drivers");
+        foreach (string sys in new[] { "keyboard.sys", "mouse.sys" })
+        {
+            string path = Path.Combine(drivers, sys);
+            if (!File.Exists(path)) continue;
+            try
+            {
+                Directory.CreateDirectory(backup);
+                File.Copy(path, Path.Combine(backup, sys), true);
+                File.Delete(path);
+                Log("   moved " + path + " to " + backup);
+            }
+            catch (Exception)
+            {
+                bool ok = MoveFileEx(path, null, 4); // MOVEFILE_DELAY_UNTIL_REBOOT
+                Log(ok ? "   " + path + " is in use; it will be deleted when Windows restarts" : "   (couldn't remove " + path + ")");
+            }
+        }
+        needRestart = true;
+        Log("   removed; restart Windows to finish");
+    }
 
-	private static bool DriverRunning()
-	{
-		for (int i = 0; i < 4; i++)
-		{
-			if (DriverRunningOnce())
-			{
-				return true;
-			}
-			Thread.Sleep(800);
-		}
-		return false;
-	}
+    private static void SetFilters(string classKey, string[] current, string remove, string required)
+    {
+        var list = new List<string>();
+        foreach (string f in current) if (!string.Equals(f, remove, StringComparison.OrdinalIgnoreCase) && f.Length > 0) list.Add(f);
+        if (!Names(list.ToArray(), required)) list.Insert(0, required);
+        if (list.Count == current.Length && Names(current, required)) return; // nothing to change
+        using (RegistryKey k = Registry.LocalMachine.OpenSubKey(classKey, true))
+            k.SetValue("UpperFilters", list.ToArray(), RegistryValueKind.MultiString);
+        Log("   " + (classKey == KeyboardClass ? "keyboard" : "mouse") + " filter list: " + string.Join(", ", current) + " -> " + string.Join(", ", list.ToArray()));
+    }
 
-	private static void MakeShortcut(string lnk, string target, string args, string workdir, string icon, string desc)
-	{
-		try
-		{
-			Type typeFromProgID = Type.GetTypeFromProgID("WScript.Shell");
-			dynamic val = Activator.CreateInstance(typeFromProgID);
-			dynamic val2 = val.CreateShortcut(lnk);
-			val2.TargetPath = target;
-			val2.Arguments = args;
-			val2.WorkingDirectory = workdir;
-			val2.IconLocation = icon;
-			val2.Description = desc;
-			val2.Save();
-		}
-		catch (Exception ex)
-		{
-			Log("   (couldn't create shortcut: " + ex.Message + ")");
-		}
-	}
+    private static bool CreateRestorePoint(string description)
+    {
+        try
+        {
+            var before = CountRestorePoints();
+            using (var sr = new ManagementClass(@"\\.\root\default", "SystemRestore", null))
+            {
+                ManagementBaseObject args = sr.GetMethodParameters("CreateRestorePoint");
+                args["Description"] = description;
+                args["RestorePointType"] = 12; // MODIFY_SETTINGS
+                args["EventType"] = 100;       // BEGIN_SYSTEM_CHANGE
+                ManagementBaseObject result = sr.InvokeMethod("CreateRestorePoint", args, null);
+                uint code = (uint)result["ReturnValue"];
+                bool made = code == 0 && CountRestorePoints() > before;
+                Log(made ? "   restore point created: " + description : "   no restore point was created (code " + code + ")");
+                return made;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log("   couldn't create a restore point: " + ex.Message);
+            return false;
+        }
+    }
 
-	private static int Run(string exe, string args)
-	{
-		ProcessStartInfo processStartInfo = new ProcessStartInfo(exe, args);
-		processStartInfo.UseShellExecute = false;
-		processStartInfo.CreateNoWindow = true;
-		ProcessStartInfo startInfo = processStartInfo;
-		using (Process process = Process.Start(startInfo))
-		{
-			process.WaitForExit();
-			return process.ExitCode;
-		}
-	}
+    private static int CountRestorePoints()
+    {
+        try
+        {
+            using (var s = new ManagementObjectSearcher(@"root\default", "SELECT SequenceNumber FROM SystemRestore"))
+                return s.Get().Count;
+        }
+        catch (Exception) { return -1; }
+    }
 
-	private static string RunCapture(string exe, string args)
-	{
-		ProcessStartInfo processStartInfo = new ProcessStartInfo(exe, args);
-		processStartInfo.UseShellExecute = false;
-		processStartInfo.CreateNoWindow = true;
-		processStartInfo.RedirectStandardOutput = true;
-		ProcessStartInfo startInfo = processStartInfo;
-		using (Process process = Process.Start(startInfo))
-		{
-			string result = process.StandardOutput.ReadToEnd();
-			process.WaitForExit();
-			return result;
-		}
-	}
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool MoveFileEx(string existing, string newName, int flags);
+
+    // ---- old Belkin software ----
+
+    // Belkin's 2008 driver packages (JmtFltr USB filter, ICP, virtual HID) can't load on Windows 11
+    // with Memory Integrity on, and a stale filter entry can keep the keypad's mouse side from starting.
+    private static void CleanBelkin()
+    {
+        string current = null;
+        int removed = 0;
+        foreach (string raw in RunCapture("pnputil", "/enum-drivers").Replace("\r", "").Split('\n'))
+        {
+            string line = raw.Trim();
+            if (line.IndexOf("oem", StringComparison.OrdinalIgnoreCase) >= 0 && line.EndsWith(".inf", StringComparison.OrdinalIgnoreCase))
+            {
+                int colon = line.IndexOf(':');
+                current = (colon >= 0 ? line.Substring(colon + 1) : line).Trim();
+            }
+            bool belkin = line.IndexOf("jmtflter", StringComparison.OrdinalIgnoreCase) >= 0 || line.IndexOf("jmtfltr", StringComparison.OrdinalIgnoreCase) >= 0
+                || line.IndexOf("usbicp", StringComparison.OrdinalIgnoreCase) >= 0 || line.IndexOf("vhidmini", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (belkin && current != null && current.StartsWith("oem", StringComparison.OrdinalIgnoreCase))
+            {
+                Log("   removing driver package " + current + " -> exit code " + RunProcess("pnputil", "/delete-driver " + current + " /uninstall /force"));
+                removed++;
+                current = null;
+            }
+        }
+        if (removed == 0) Log("   (no Belkin driver packages found)");
+    }
+
+    private static void CleanBelkinFilter()
+    {
+        int removed = 0;
+        foreach (string iface in new[] { "VID_050D&PID_0200&MI_00", "VID_050D&PID_0200&MI_01" })
+        {
+            using (RegistryKey parent = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\USB\" + iface))
+            {
+                if (parent == null) continue;
+                foreach (string instance in parent.GetSubKeyNames())
+                {
+                    using (RegistryKey node = parent.OpenSubKey(instance))
+                    {
+                        string[] filters = node == null ? null : node.GetValue("LowerFilters") as string[];
+                        if (filters == null || !Names(filters, "JmtFltr")) continue;
+                    }
+                    // Removing the device entry drops the stale filter; Windows sets the device up
+                    // again with its own driver on the next scan.
+                    string id = @"USB\" + iface + @"\" + instance;
+                    Log("   removed device entry with the Belkin filter: " + id + " (exit code " + RunProcess("pnputil", "/remove-device \"" + id + "\"") + ")");
+                    removed++;
+                }
+            }
+        }
+        if (removed > 0) RunProcess("pnputil", "/scan-devices");
+        if (ServiceExists("jmtfltr"))
+        {
+            Log("   removed the Belkin filter service jmtfltr (exit code " + RunProcess("sc", "delete jmtfltr") + ")");
+            string sys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"drivers\JmtFltr.sys");
+            if (File.Exists(sys))
+            {
+                try { File.Delete(sys); Log("   deleted " + sys); }
+                catch (Exception) { Log(MoveFileEx(sys, null, 4) ? "   " + sys + " will be deleted when Windows restarts" : "   (couldn't delete " + sys + ")"); }
+            }
+        }
+        else if (removed == 0) Log("   (no Belkin filter leftovers found)");
+    }
+
+    // ---- files, shortcuts, UsbDk ----
+
+    private static void Extract(string resource, string path)
+    {
+        using (Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream(resource))
+        {
+            if (s == null) throw new Exception("resource missing from the installer: " + resource);
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    using (FileStream f = File.Create(path)) s.CopyTo(f);
+                    return;
+                }
+                catch (IOException)
+                {
+                    if (attempt >= 3) throw;
+                    StopPath(path);
+                    Thread.Sleep(600);
+                    s.Position = 0;
+                }
+            }
+        }
+    }
+
+    private static void MakeShortcuts()
+    {
+        string menu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", "n52te");
+        Directory.CreateDirectory(menu);
+        string editor = Path.Combine(InstallDir, EditorExe);
+        Shortcut(Path.Combine(menu, "n52te Editor.lnk"), editor, "", editor, "Edit the n52te's onboard keymaps");
+        Shortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "n52te Editor.lnk"), editor, "", editor, "Edit the n52te's onboard keymaps");
+        string cmd = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+        Shortcut(Path.Combine(menu, "n52te Keymaps (command prompt).lnk"), cmd,
+            "/k \"set \"PATH=" + InstallDir + ";%PATH%\" & n52te-config info & echo. & n52te-config\"", cmd, "n52te-config: read, switch and write the n52te's onboard keymaps");
+        Log("   shortcuts: Start menu (n52te Editor, n52te Keymaps) and Desktop (n52te Editor)");
+    }
+
+    private static void Shortcut(string lnk, string target, string args, string icon, string description)
+    {
+        try
+        {
+            dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+            dynamic s = shell.CreateShortcut(lnk);
+            s.TargetPath = target;
+            s.Arguments = args;
+            s.WorkingDirectory = InstallDir;
+            s.IconLocation = icon;
+            s.Description = description;
+            s.Save();
+        }
+        catch (Exception ex)
+        {
+            Log("   (couldn't create " + lnk + ": " + ex.Message + ")");
+        }
+    }
+
+    private static void CheckUsbDk()
+    {
+        if (File.Exists(UsbDkHelper))
+        {
+            Log("   UsbDk is installed: the editor can read and write the keypad.");
+            return;
+        }
+        Log("   UsbDk is NOT installed. The editor needs it to reach the keypad:");
+        Log("   install UsbDk 1.0.22 x64 (UsbDk_1.0.22_x64.msi) from " + UsbDkPage + ", then restart Windows.");
+        if (Ask("The editor needs UsbDk (free, signed by Red Hat) to talk to the keypad. Open its download page now?\n\nInstall UsbDk_1.0.22_x64.msi, then restart Windows."))
+        {
+            try { Process.Start(UsbDkPage); } catch (Exception) { }
+        }
+    }
+
+    private static int RunProcess(string exe, string args)
+    {
+        using (Process p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true }))
+        {
+            p.WaitForExit();
+            return p.ExitCode;
+        }
+    }
+
+    private static string RunCapture(string exe, string args)
+    {
+        using (Process p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true }))
+        {
+            string output = p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+            return output;
+        }
+    }
 }

@@ -224,6 +224,30 @@ namespace N52te
             return seq;
         }
 
+        // The steps in the form Parse reads ("A 1000ms +LShift B -LShift"), for editing.
+        public static string ToText(byte[] profile)
+        {
+            var parts = new List<string>();
+            for (int i = 0; i + 1 < profile.Length; i += 2)
+            {
+                byte code = profile[i], v = profile[i + 1];
+                if (code == 0) break;
+                if (code == FirmwareCodes.DelayStep) { parts.Add((v * DelayUnitMs).ToString(CultureInfo.InvariantCulture) + "ms"); continue; }
+                string name = TokenName(code);
+                bool tap = v == 1 && i + 3 < profile.Length && profile[i + 2] == code && profile[i + 3] == 0;
+                if (tap) { parts.Add(name); i += 2; }
+                else parts.Add((v != 0 ? "+" : "-") + name);
+            }
+            return string.Join(" ", parts.ToArray());
+        }
+
+        private static string TokenName(byte code)
+        {
+            string n = FirmwareCodes.Name(code).Replace(' ', '_');
+            byte back;
+            return FirmwareCodes.TryParse(n, out back) && back == code ? n : string.Format("0x{0:X2}", code);
+        }
+
         public static string Describe(byte[] profile)
         {
             var parts = new List<string>();

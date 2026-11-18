@@ -94,6 +94,27 @@ namespace N52te
         private IntPtr handle;
         private readonly IntPtr evt;
 
+        // Whether UsbDk sees the keypad, without borrowing it (the keypad keeps typing).
+        public static bool IsPresent()
+        {
+            if (!UsbDk.IsInstalled) return false;
+            UsbDk.Load();
+            IntPtr list;
+            uint count;
+            if (!UsbDk.UsbDk_GetDevicesList(out list, out count)) return false;
+            try
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    IntPtr desc = list + i * UsbDk.DeviceInfoSize + UsbDk.DescriptorOffset;
+                    if (Marshal.ReadByte(desc, 0) == 18 && Marshal.ReadByte(desc, 1) == 1
+                        && (ushort)Marshal.ReadInt16(desc, 8) == Vid && (ushort)Marshal.ReadInt16(desc, 10) == Pid) return true;
+                }
+                return false;
+            }
+            finally { UsbDk.UsbDk_ReleaseDevicesList(list); }
+        }
+
         public UsbDkTransport()
         {
             UsbDk.Load();
