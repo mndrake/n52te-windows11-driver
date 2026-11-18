@@ -64,6 +64,10 @@ flags byte on upload; see [03](03-usb-protocol.md)) and the playback options in 
 editor's "Mouse Button" panel inserts `D0`–`D2` press/release steps, the "Left Button Press /
 Release" labels.
 
+The macro options (p1–p3), the recorder's VK → code table, the real size limits, the polling
+rate, Reset Keymap, Import and the profile file checksum are in
+[07](07-n52tecfg-macros-and-options.md).
+
 ## Files the editor uses
 
 * `skin_English\*.jpg|bmp|ini`: the whole UI is a bitmap skin. `main_normal1/2/3.jpg` are the

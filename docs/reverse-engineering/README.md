@@ -17,6 +17,7 @@ this project, and how to fix them. The pages here are the detailed reference beh
 | [04 - Onboard profile and key codes](04-onboard-profile-and-codes.md) | The 27 inputs, profile record layout, the full firmware key-code table, factory profile dump |
 | [05 - n52teHid.exe service](05-n52tehid-service.md) | Startup sequence, driver events, PC-side action types, the virtual joystick report |
 | [06 - n52teCfg.exe editor](06-n52tecfg-editor.md) | Every assignable action and the code/bytes it writes, keymap rules, macro recorder hook |
+| [07 - Editor: macros and options](07-n52tecfg-macros-and-options.md) | Macro option bytes p1–p3, recorder VK → code table, mouse and delay steps, size limits, polling rate, Reset Keymap, Import, profile file checksum |
 
 ## Status of the findings
 
@@ -24,9 +25,11 @@ this project, and how to fix them. The pages here are the detailed reference beh
   where possible cross-checked against the x86 and x64 builds, the factory profile and the manual.
 * **Inferred**: the host code only makes sense if the firmware behaves a certain way, but the
   firmware itself was not examined. These are marked *inferred*.
-* **Unverified on hardware**: nothing here was tested against a real keypad or captured on the
-  USB bus. A USBPcap/usbmon capture of the original software (for example in a Windows XP VM
-  with USB passthrough) is the next step before writing a new tool that sends these commands.
+* **Verified on hardware** (November 2026): the configuration protocol, read-back and upload
+  ([03](03-usb-protocol.md#verified-on-hardware-november-2026)), and the mouse, media, command
+  and keymap-switch codes ([04](04-onboard-profile-and-codes.md#verified-on-hardware-17-nov-2026)).
+  Macros and the macro options have not been tested on the keypad yet. Nothing was captured on
+  the USB bus from the original software.
 
 ## How it was done
 

@@ -64,7 +64,7 @@ WinUSB transport).
 | Transport | **UsbDk** first, behind `IKeypadTransport`; temporary WinUSB only if UsbDk fails with Memory Integrity on | UsbDk works on hardware today and leaves the keypad on its HID driver. Standard HID is ruled out (no feature reports). WinUSB is untested: it would have to replace the driver of interface 0 (the keyboard), and it isn't known whether it passes the device-recipient requests with arbitrary `wIndex` the keypad needs. |
 | Companion tray app | **Not in the first version** | Per-app keymap switching would borrow the keypad on every window change, and showing keypad-made switches would need constant reads; neither fits a borrow-the-device transport. If wanted later, PC actions can come back as a small optional add-on: the keypad plays an unused hotkey chord (e.g. Ctrl+Alt+Shift+F1, a firmware macro) and a tray app catches it with `RegisterHotKey`, with no driver. |
 | Look | **Same layout and workflow, our own artwork** | Belkin's skin bitmaps and logos are Belkin's/Razer's; shipping them in a public repo isn't ours to do, and imitating their branding would misrepresent the project. Draw the keypad outline and controls ourselves. |
-| PC-side actions (DirectInput joystick, Load Profile, Load Application, Open Explorer, Zoom, Minimize/Maximize, Shuffle) | **Leave out** (shown greyed out, with a tooltip) | The keypad reports them as keyboard usage `0xC4 + n`, which Windows' keyboard driver drops; running them needs a resident filter driver like `JmtFltr`. |
+| PC-side actions (DirectInput joystick, Load Profile, Load Application, Open Explorer, Zoom, Minimize/Maximize, Shuffle) and the **Basic / Additional Commands** (`C0`–`CE`: Cut, Copy, Paste, Undo, Find, Swap Windows, Run, …) | **Leave out** (shown greyed out, with a tooltip) | The keypad reports the PC-side actions as keyboard usage `0xC4 + n`, which Windows' keyboard driver drops; running them needs a resident filter driver like `JmtFltr`. The commands send nothing at all on hardware (17 Nov 2026). Cut/Copy/Paste etc. can still be offered as ordinary key-combination macros (Ctrl+X …) once macros are verified. |
 | Auto-switching by application, override, OSD | **Leave out of the first version** | Switching profiles means re-uploading three keymaps; the keypad stops typing for a few seconds each time. Revisit after v2.0 if wanted. |
 | Remapper + Interception | **Retire** from the installer; offer to remove them | The onboard editor replaces them. |
 | UsbDk | **Bundle the signed UsbDk 1.0.22 MSI** (Apache 2.0) and install it with consent, then ask for a restart | `n52te-config` and the editor need it; the restart avoids the Bluetooth-keyboard problem seen during testing. |
@@ -96,20 +96,18 @@ question (are there feature reports?) is already answered.
    `read all` work with Memory Integrity on, without admin rights
    ([profile-tool-design.md](profile-tool-design.md#test-plan)). UsbDk stays the transport; a
    write with Memory Integrity on is still to be checked in step 2.
-2. **Hardware test matrix** with `n52te-config set` (each change backed up and restored):
-   * select keymap 2, confirm the LED is green;
-   * mouse codes `D0`–`D8` (left / right / middle, scroll down / up, axis moves);
-   * keymap switches `D9`–`DF` written to all three keymaps (LED follows, momentary vs toggle);
-   * commands `C0`–`CE` and media codes `E8`–`FF` (what Windows receives);
-   * Disabled (`00`) and Reset to default.
-   Record results in [04](reverse-engineering/04-onboard-profile-and-codes.md).
-3. **Finish reverse-engineering `n52teCfg.exe`** (Ghidra, as for `n52teHid.exe`):
-   * macro editor: how Run Times / Repeat while pressed / Repeat until next key / Repetition
-     interval / Ignore delays map to option bytes p1–p3;
-   * the size check behind "exceeds the maximum allowable size" (steps per macro, total);
-   * how recorded keys (virtual-key codes) become firmware key codes, and how mouse-button
-     steps are stored in a macro;
-   * Reset Keymap, Import, and the polling-rate handler.
+2. **Hardware test matrix.** Mostly done on 17 Nov 2026
+   ([04](reverse-engineering/04-onboard-profile-and-codes.md#verified-on-hardware-17-nov-2026)):
+   keymap 2 is Green; mouse codes `D0`–`D8` and keymap switches `D9`–`DF` work from the firmware
+   and the LED follows; the media codes tried work; the commands tried (`C0`–`C3`, `C5`, `C9`,
+   `CB`) send **nothing**. Still to do: the remaining media codes, Reset to default, and one write
+   with Memory Integrity on.
+3. ~~**Finish reverse-engineering `n52teCfg.exe`.**~~ Done on 17 Nov 2026
+   ([07](reverse-engineering/07-n52tecfg-macros-and-options.md)): p1 = mode (Run Times / Repeat
+   while pressed / Repeat until next key), p2 = run count, p3 = interval; "Ignore delays" never
+   reaches the keypad; the size warning was never implemented (the real limit is 128 steps per
+   macro); the recorder's VK → code table; Reset Keymap, Import, polling rate, and the profile
+   file's trailing checksum byte.
 4. **Macro upload test:** add a `macro` command to `n52te-config` (from a small text file of
    steps), write a short macro with a delay, check it plays from the keypad, test each behaviour
    option, restore.
@@ -138,8 +136,9 @@ keypad at least once.
 9. Main window laid out like the original: keypad drawing, Map 1/2/3 tabs (blue / red / green,
    firmware keymaps 0/1/2), the 27 labelled input boxes, active keymap shown from the keypad.
 10. Right-click menu with the firmware-run items: Single Key, Macro, Keymap (all three keymaps),
-    Mouse (buttons, wheel, axes), Basic / Additional Commands, Media, Reset Key to Default,
-    Disable Button. PC-side items greyed out.
+    Mouse (buttons, wheel, axes; with the pointer directions the keypad really produces, not
+    Belkin's reversed labels), Media, Reset Key to Default, Disable Button. PC-side items and the
+    Basic / Additional Commands greyed out.
 11. **Single Key** dialog that captures a key press (low-level keyboard hook, like `KBHook.dll`)
     and **Advanced Settings** drop-downs.
 12. **Read from keypad** (new profile from the keypad's current contents) and **Apply Changes**

@@ -100,7 +100,18 @@ and the Bluetooth keyboard stopped reaching apps until a reboot. Using the tool 
    test PC first needed Interception's `keyboard.sys` / `mouse.sys` (each has a writable and
    executable `INIT` section) and some unrelated old Razer, Epson and Logitech drivers removed;
    the incompatible-driver list only refreshed after a restart.
-5. Not yet: writing macros, mouse codes and keymap-switch codes; a write with Memory Integrity on.
+5. ~~Mouse, media, command and keymap-switch codes.~~ Done on 17 Nov 2026 on Red and Green, then
+   restored from backups; results in
+   [04](reverse-engineering/04-onboard-profile-and-codes.md#verified-on-hardware-17-nov-2026).
+   Mouse, media and keymap-switch codes work from the firmware; the commands (`C0`–`CE`) send
+   nothing.
+6. Not yet: macros and their option bytes, the polling rate, and a write with Memory Integrity
+   on. The first macro attempt (17 Nov) was void: from about 17:30 nothing from the keypad reached
+   Windows, not even a plain key in the untouched Blue keymap, although a raw capture over UsbDk
+   showed the keypad sending the Blue layout correctly. The cause wasn't found. One more fault
+   happened on the way: an early version of `n52te-config listen` left the keypad redirected to
+   UsbDk until it was replugged (fixed). The next day a stale Interception entry in the keyboard
+   class filters stopped every keyboard on the PC, which may be the same fault.
 
 ## Open questions
 

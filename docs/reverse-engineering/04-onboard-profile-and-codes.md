@@ -46,7 +46,7 @@ Each input is a 0x104-byte record. Keymap *k* input *n* (1-based) starts at
 |---|---|---|
 | `+0x000` | 1 | **code**: what the input does (below) |
 | `+0x001` | 256 | **seq**: 128 × `(code, flags)` steps. `flags` bit 0: 1 = press, 0 = release. A step with code `0xFF` is a delay, in the editor copy only |
-| `+0x101` | 3 | option bytes p1, p2, p3 (factory `01 01 00`; meaning not named in the code, probably macro playback mode) |
+| `+0x101` | 3 | option bytes p1, p2, p3 (factory `01 01 00`): macro playback mode, run count and repeat interval, from the editor code ([07](07-n52tecfg-macros-and-options.md#1-macro-behaviour-options--p1-p2-p3)); firmware behaviour not yet tested |
 
 How the `code` byte is interpreted:
 
@@ -56,10 +56,10 @@ How the `code` byte is interpreted:
 | key code `0x10`–`0x9F` | Single key | firmware → keyboard interface MI_00 |
 | = **macro marker** of this input (`0xA0`–`0xBA`) | Play `seq` as a macro | firmware |
 | = **PC-action marker** of this input (`0x7C`–`0x9F`) | PC-side action: `seq[0]` = type, `seq[1]` = parameter | **PC** (`n52teHid.exe`); the firmware reports keyboard usage `0xC4 + n` (*inferred*) |
-| `0xC0`–`0xCE` | Command (Cut, Copy, …, Show Desktop) | firmware (*inferred*) |
-| `0xD0`–`0xD8` | Mouse button / wheel / pointer movement | **firmware → mouse interface MI_01** |
-| `0xD9`–`0xDF` | Keymap switch (cycle, or Blue/Green/Red toggle/momentary) | **firmware; the LED follows the keymap** |
-| `0xE8`–`0xFF` | Media / WWW / application keys | firmware (consumer keys, *inferred*) |
+| `0xC0`–`0xCE` | Command (Cut, Copy, …, Show Desktop) | **nobody on Windows 11**: the keypad sends nothing for the ones tested (hardware); presumably Belkin's service ran them |
+| `0xD0`–`0xD8` | Mouse button / wheel / pointer movement | **firmware → mouse interface MI_01** (hardware) |
+| `0xD9`–`0xDF` | Keymap switch (cycle, or Blue/Green/Red toggle/momentary) | **firmware; the LED follows the keymap** (hardware) |
+| `0xE8`–`0xFF` | Media / WWW / application keys | firmware, consumer keys (hardware for the ones tested) |
 
 The PC-action markers overlap the key-code range (`0x8F` is also "Mute", `0x9B`–`0x9F` the
 editor's "DPad NE…NW" labels). The editor and firmware disambiguate by checking the marker
@@ -132,21 +132,21 @@ Japanese keyboard.
 
 | Code | Name | Handled by |
 |---|---|---|
-| `C0` | Cut | command (firmware, *inferred*) |
-| `C1` | Copy | command (firmware, *inferred*) |
-| `C2` | Paste | command (firmware, *inferred*) |
-| `C3` | Undo | command (firmware, *inferred*) |
-| `C4` | All | command (firmware, *inferred*) |
-| `C5` | Find | command (firmware, *inferred*) |
-| `C6` | New | command (firmware, *inferred*) |
-| `C7` | Save | command (firmware, *inferred*) |
-| `C8` | Print | command (firmware, *inferred*) |
-| `C9` | Swap Windows | command (firmware, *inferred*) |
-| `CA` | Close Windows | command (firmware, *inferred*) |
-| `CB` | Run | command (firmware, *inferred*) |
-| `CC` | Show Desktop | command (firmware, *inferred*) |
-| `CD` | Maximize Windows | command (firmware, *inferred*) |
-| `CE` | Minimize Windows | command (firmware, *inferred*) |
+| `C0` | Cut | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C1` | Copy | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C2` | Paste | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C3` | Undo | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C4` | All | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C5` | Find | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C6` | New | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C7` | Save | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C8` | Print | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `C9` | Swap Windows | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `CA` | Close Windows | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `CB` | Run | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `CC` | Show Desktop | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `CD` | Maximize Windows | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
+| `CE` | Minimize Windows | command: nothing reaches Windows (C0–C3, C5, C9, CB tested; [below](#verified-on-hardware-17-nov-2026)) |
 | `D0` | Left Button | **mouse (firmware → MI_01)** |
 | `D1` | Right Button | **mouse (firmware → MI_01)** |
 | `D2` | Middle Button | **mouse (firmware → MI_01)** |
@@ -192,3 +192,41 @@ The keymap-switch codes are always written to **all three keymaps** of the profi
 (editor `0x4e21`–`0x4e27` handlers loop over the keymaps). That matches the manual: "Keys that
 are selected for one of these Keymap switching options will be dedicated to this function
 across all three Keymaps".
+
+## Verified on hardware (17 Nov 2026)
+
+Test layouts were written with `n52te-config` (UsbDk, Memory Integrity off) to keymap 1 (Red)
+and keymap 2 (Green); keymap 0 (Blue) kept the owner's layout. What Windows received was logged
+with `research/N52teMonitor.cs` (Raw Input), and the LED colours were reported by hand. Afterwards
+Red and Green were restored from the backups taken before the test; a read-back on 18 Nov matched
+them apart from the header bytes the upload writes.
+
+All codes below had the factory option bytes `01 01 00`.
+
+| Code | Name in the editor | On the keypad |
+|---|---|---|
+| `D0` / `D1` / `D2` | Left / Right / Middle Button | real mouse clicks, held for as long as the input is held |
+| `D3` / `D4` | Scroll down / up | scroll, but repeats very fast while held: one short press gave 14 wheel steps |
+| `D5` / `D6` | X-axis left / right | moves the pointer **right** / **left** (the editor's names are reversed) |
+| `D7` / `D8` | Y-axis left / right | moves the pointer **down** / **up** |
+| `C0` `C1` `C2` `C3` `C5` | Cut, Copy, Paste, Undo, Find | **nothing** reaches Windows |
+| `C9` / `CB` | Swap Windows / Run | **nothing** reaches Windows |
+| `EE` / `EF` / `ED` | Volume Up / Down / Mute | real consumer keys (volume up, volume down, mute) |
+| `F2` | Calculator | consumer key; opens Calculator |
+| `FB` | WWW Back | consumer key; browser Back |
+| `00` | Disable Button | nothing |
+| `D9` | Cycle Keymaps | Red → Green (so keymap 2 is Green) |
+| `DA` / `DC` / `DE` | Blue / Green / Red Keymap Toggle | switch to that keymap and stay; the LED follows. Pressing the switch for the keymap already active keeps it |
+| `DB` / `DD` / `DF` | Blue / Green / Red Keymap Momentary | that keymap (and LED colour) while held, back to the previous one on release |
+
+The LED follows switches made with the keypad's own buttons, not only `SET_PROFILEID` from the PC.
+
+**Why switches go into all three keymaps.** In the test, the round thumb button was "Blue
+Keymap Momentary" (`DB`) in Red only; in Blue it is the owner's middle button. Holding it
+switched to Blue, where the same button is a middle click, and the keypad then flipped between
+Red and Blue at about the polling rate, sending hundreds of middle clicks. A switch input must
+have the same switch code in every keymap, as the original editor writes it.
+
+**Not tested yet:** macros (a first attempt was void: during it nothing from the keypad reached
+Windows at all, a PC-side fault, see [profile-tool-design.md](../profile-tool-design.md)), the
+macro options p1–p3, the other commands and media codes, and the polling rate.
