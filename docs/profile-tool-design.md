@@ -75,6 +75,11 @@ csc /platform:x64 /out:n52te-config.exe src\configtool\N52teConfig.cs
 | `n52te-config roundtrip 0\|1\|2` | write a keymap back unchanged and verify it |
 | `n52te-config set KM INPUT CODE --yes` | change one input to a firmware code (hex), verify |
 | `n52te-config write FILE KM --yes` | write a saved image (e.g. a backup) as keymap KM, verify |
+| `n52te-config polling [125\|500\|1000]` | set the keyboard side's USB polling rate (kept after unplugging, effective after replugging); without a rate, only shows the current one |
+| `n52te-config descriptor` | show the USB poll interval of each endpoint (read-only) |
+| `n52te-config listen [SECONDS]` | print the keypad's raw key and mouse reports (diagnostic; the keypad types nothing meanwhile) |
+
+The tool refuses command 7 (`ENTER_ICP`, firmware update) whatever it is asked to do.
 
 Every write first saves `keymapN-before-<time>.bin` in `Documents\n52te keymaps` (also where
 `read` saves images unless given a folder), checks each chunk's
@@ -108,8 +113,9 @@ and the Bluetooth keyboard stopped reaching apps until a reboot. Using the tool 
 6. ~~Macros, their option bytes, and writing with Memory Integrity on.~~ Done on 18 Nov 2026:
    three verified writes to Red with Memory Integrity on (two macro tests and the restore);
    results in [04](reverse-engineering/04-onboard-profile-and-codes.md#macros-18-nov-2026).
-7. Not yet: the polling rate, mouse steps inside a macro, the remaining media codes. The first
-   macro attempt (17 Nov) was void: from about 17:30 nothing from the keypad reached
+7. ~~The polling rate, mouse steps inside a macro, the remaining media codes.~~ Done on 18 Nov
+   2026 ([04](reverse-engineering/04-onboard-profile-and-codes.md#media-codes-18-nov-2026)). Phase 0
+   is complete except command 8, which nothing needs. The first macro attempt (17 Nov) was void: from about 17:30 nothing from the keypad reached
    Windows, not even a plain key in the untouched Blue keymap, although a raw capture over UsbDk
    showed the keypad sending the Blue layout correctly. The cause wasn't found. One more fault
    happened on the way: an early version of `n52te-config listen` left the keypad redirected to

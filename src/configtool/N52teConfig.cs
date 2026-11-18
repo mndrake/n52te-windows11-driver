@@ -271,13 +271,21 @@ internal sealed class Keypad : IDisposable
 
     // Requests that worked from Linux: interface recipient for wIndex low byte 0/1,
     // device recipient for higher chunk numbers.
+    // Command 7 (IOCTL_ENTER_ICP) would put the keypad into its firmware-update mode. Never send it.
+    private static void Guard(ushort value)
+    {
+        if (value == 7) throw new InvalidOperationException("command 7 (ENTER_ICP, firmware update) is never sent");
+    }
+
     private byte[] Get(ushort value, ushort index, int length)
     {
+        Guard(value);
         return Control((byte)((index & 0xFF) <= 1 ? 0xA1 : 0xA0), 0x01, value, index, null, length);
     }
 
     private void Set(ushort value, ushort index, byte[] data)
     {
+        Guard(value);
         Control((byte)((index & 0xFF) <= 1 ? 0x21 : 0x20), 0x09, value, index, data, 0);
     }
 
@@ -310,6 +318,12 @@ internal sealed class Keypad : IDisposable
     public byte[] ProfileId() { return Get(5, 0, 8); }
 
     public void SelectKeymap(int km) { Set(4, 0, Block(3, (byte)km)); }
+
+    // SET_POLLINGRATE (9), sub-command 4: report interval in ms (8 = 125 Hz, 2 = 500 Hz, 1 = 1000 Hz).
+    public void SetPollingInterval(byte ms) { Set(9, 0, Block(4, ms)); }
+
+    // GET_POLLINGRATE (10): never used by Belkin's software; reply format unknown.
+    public byte[] PollingRate() { return Get(10, 0, 8); }
 
     public byte[] ReadKeymap(int km)
     {
@@ -460,6 +474,7 @@ Keymaps: 0 = blue, 1 = red, 2 = green.
 
   n52te-config info                     firmware version and active keymap
   n52te-config select blue|red|green    make that keymap active (the LED follows; kept after unplugging)
+  n52te-config polling [125|500|1000]   set the USB polling rate (Hz); always shows the keypad's reply
   n52te-config read [0|1|2|all] [DIR]   read keymaps back, decode them, save keymapN.bin in DIR
   n52te-config roundtrip 0|1|2          write a keymap back unchanged and verify it (tests the write path)
   n52te-config set KM INPUT CODE --yes  set one input (1-27) of keymap KM to a firmware code (hex), verify
@@ -515,6 +530,42 @@ images go to Documents\n52te keymaps (read: unless DIR is given).";
                 case "listen":
                     pad.Listen(args.Length > 1 ? int.Parse(args[1]) : 20, Console.Out);
                     return 0;
+
+                case "descriptor":
+                {
+                    // Standard GET_DESCRIPTOR(CONFIGURATION), read-only: shows each endpoint's
+                    // bInterval, which is how often Windows polls it.
+                    byte[] d = pad.Control(0x80, 0x06, 0x0200, 0, null, 255);
+                    Console.WriteLine("configuration descriptor ({0} bytes): {1}", d.Length, Keypad.Hex(d));
+                    for (int i = 0; i + 1 < d.Length && d[i] > 0; i += d[i])
+                    {
+                        if (d[i + 1] == 4 && i + 8 < d.Length)
+                            Console.WriteLine("  interface {0}: class {1:X2} subclass {2:X2} protocol {3:X2}", d[i + 2], d[i + 5], d[i + 6], d[i + 7]);
+                        else if (d[i + 1] == 5 && i + 6 < d.Length)
+                            Console.WriteLine("  endpoint {0:X2}: attributes {1:X2}, max packet {2}, bInterval {3}", d[i + 2], d[i + 3], d[i + 4] | (d[i + 5] << 8), d[i + 6]);
+                    }
+                    return 0;
+                }
+
+                case "polling":
+                {
+                    if (args.Length > 1)
+                    {
+                        byte ms;
+                        switch (args[1])
+                        {
+                            case "125": ms = 8; break;
+                            case "500": ms = 2; break;
+                            case "1000": ms = 1; break;
+                            default: throw new ArgumentException("polling rate must be 125, 500 or 1000");
+                        }
+                        pad.SetPollingInterval(ms);
+                        Console.WriteLine("sent SET_POLLINGRATE: {0} Hz (interval {1} ms)", args[1], ms);
+                    }
+                    byte[] r = pad.PollingRate();
+                    Console.WriteLine("GET_POLLINGRATE reply {0} ({1})", Keypad.Hex(r), Keypad.ChecksumOk(r) ? "checksum ok" : "checksum MISMATCH or unknown format");
+                    return 0;
+                }
 
                 case "select":
                 {

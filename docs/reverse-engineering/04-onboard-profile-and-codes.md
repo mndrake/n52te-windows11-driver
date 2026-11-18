@@ -227,8 +227,9 @@ switched to Blue, where the same button is a middle click, and the keypad then f
 Red and Blue at about the polling rate, sending hundreds of middle clicks. A switch input must
 have the same switch code in every keymap, as the original editor writes it.
 
-**Not tested yet:** the other commands and media codes, and the polling rate. (A first macro
-attempt on 17 Nov was void: nothing from the keypad reached Windows at the time, a PC-side fault,
+**Not tested yet:** the other commands (`C4` and `C6`–`CE` apart from `C9`/`CB`), which are
+expected to send nothing like the rest. The remaining media codes and the polling rate were
+tested on 18 Nov, below. (A first macro attempt on 17 Nov was void: nothing from the keypad reached Windows at the time, a PC-side fault,
 see [profile-tool-design.md](../profile-tool-design.md). Macros were tested again on 18 Nov,
 below.)
 
@@ -258,5 +259,55 @@ these macros unchanged.
 
 So, for a new tool: write option bytes as editor value + 1 (mode 1–3, count 1–10, interval
 1–5), and never leave p1 at 0 on a macro input. The `01 01 00` stored on every input of the test
-keypad is "Run Times, once" for macros and is ignored by plain keys. Mouse-button steps inside a
-macro (`D0`–`D2`) are not tested yet.
+keypad is "Run Times, once" for macros and is ignored by plain keys.
+
+Mouse-button steps inside a macro work too: `D0 01 D0 00` left-clicked, `D1 01 D1 00`
+right-clicked, and `35 01 35 00 D2 01 D2 00` typed `h` and then middle-clicked (raw options
+`01 01 01`).
+
+### Media codes (18 Nov 2026)
+
+Every remaining code in `E8`–`FF` was put on Red and pressed once, with
+`research/N52teMonitor.cs` logging the raw HID report. All of them arrive on interface 1
+(collection 2, report ID `02`) as a **consumer-page usage**, so the firmware sends them without
+any PC software. The "Windows key" column is what Windows turned the usage into, if anything:
+
+| Code | Editor name | Consumer usage | Windows key |
+|---|---|---|---|
+| `E8` | Next Track | `0B5` Scan Next Track | MediaNextTrack |
+| `E9` | Pre Track | `0B6` Scan Previous Track | MediaPreviousTrack |
+| `EA` | Stop | `0B7` Stop | MediaStop |
+| `EB` | Eject | `0B8` Eject | none |
+| `EC` | Play/Pause | `0CD` Play/Pause | MediaPlayPause |
+| `F0` | Media | `183` AL Consumer Control Configuration | SelectMedia (opens the media player) |
+| `F1` | Mail | `18A` AL Email Reader | LaunchMail (opens the mail app) |
+| `F3` | Open Explorer | `194` AL Local Machine Browser | LaunchApplication1 (opens File Explorer) |
+| `F4` | Zoom In | `22D` AC Zoom In | none |
+| `F5` | Zoom out | `22E` AC Zoom Out | none |
+| `F6` | Zoom 100% | `231` AC Normal View | none |
+| `F7` | Rotate Picture | `1C8` | none |
+| `F8` | Search | `221` AC Search | BrowserSearch |
+| `F9` | Shuffle | `1C9` | none |
+| `FA` | WWW Home | `223` AC Home | BrowserHome |
+| `FC` | WWW Forward | `225` AC Forward | BrowserForward |
+| `FD` | WWW Stop | `226` AC Stop | BrowserStop |
+| `FE` | WWW Refresh | `227` AC Refresh | BrowserRefresh |
+| `FF` | WWW Favorite | `22A` AC Bookmarks | BrowserFavorites |
+
+With `ED`/`EE`/`EF`/`F2`/`FB` from 17 Nov, every media code has now run on the keypad. "none"
+means Windows has no virtual key for the usage; an application that reads consumer reports itself
+could still use it. Open Explorer, Zoom and Shuffle, which the original editor stored as PC-side
+actions, therefore also exist as firmware codes.
+
+### Polling rate (18 Nov 2026)
+
+`SET_POLLINGRATE` ([03](03-usb-protocol.md#8-byte-command-format)) is kept across unplugging and
+takes effect when the keypad next connects. It changes only the **keyboard** endpoint:
+
+| Setting | `bInterval` of endpoint `81` (keyboard, interface 0) | `bInterval` of endpoint `82` (mouse + consumer, interface 1) |
+|---|---|---|
+| 125 Hz (interval 8, the test keypad's setting) | 8 ms | 8 ms |
+| 1000 Hz (interval 1), after replugging | 1 ms | 8 ms |
+
+So mouse and media reports stay at 125 Hz whatever the setting: a pointer-move input sent exactly
+one report every 8 ms at both settings.

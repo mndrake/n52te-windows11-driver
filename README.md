@@ -81,6 +81,7 @@ n52te-config select blue            switch the keypad to its Blue keymap (or red
 n52te-config read all               show what every control does in each keymap
 n52te-config set blue 18 2F --yes   set input 18 (wheel down) of Blue to code 2F (B)
 n52te-config write FILE blue --yes  write a saved keymap image, e.g. a backup
+n52te-config polling 1000           keyboard polling rate 125 / 500 / 1000 Hz (replug to apply)
 ```
 
 Every write saves a backup of the keymap first, in `Documents\n52te keymaps`. The keypad doesn't type while the tool runs (a few seconds). Input numbers and codes are in [docs/reverse-engineering/04](docs/reverse-engineering/04-onboard-profile-and-codes.md); single keys, macros, mouse, media and keymap-switch codes have been tested on hardware (`n52te-config` writes macros only from a prepared keymap image for now). The tool works with Memory Integrity off and on. Details: [docs/profile-tool-design.md](docs/profile-tool-design.md).

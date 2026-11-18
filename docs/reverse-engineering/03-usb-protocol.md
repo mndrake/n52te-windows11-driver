@@ -52,7 +52,7 @@ offset  0    1    2    3     4    5      6         7
 | SUB | Command | VALUE |
 |---|---|---|
 | 3 | SET/GET_PROFILEID (4/5) | keymap 0, 1, 2. **On the hardware: 0 = Blue, 1 = Red (both verified), 2 = Green (inferred)**, not the editor's menu order. Verified working on interface 0 and kept across unplugging; see [the hardware test](../original-driver-analysis.md#verified-on-hardware-switching-the-onboard-keymap) |
-| 4 | SET_POLLINGRATE (9) | interval in ms: `08` = 125 Hz, `02` = 500 Hz, `01` = 1000 Hz (manual: needs a reboot) |
+| 4 | SET_POLLINGRATE (9) | interval in ms: `08` = 125 Hz, `02` = 500 Hz, `01` = 1000 Hz. **Verified on hardware** (18 Nov 2026): kept across unplugging, takes effect when the keypad reconnects (the manual says "needs a reboot"), and sets the poll interval of the keyboard endpoint only ([04](04-onboard-profile-and-codes.md#polling-rate-18-nov-2026)) |
 
 Examples (all derived from the service code, not captured):
 
@@ -65,6 +65,10 @@ polling 1000 Hz      00 08 00 04 00 01 00 0D
 
 The service checks replies the same way: `GET_PROFILEID` is accepted only if bytes 6/7 match.
 Otherwise it logs `Checksum Error`.
+
+`GET_POLLINGRATE` (10), never used by Belkin's software, works on hardware: it returns
+`00 08 01 06 03 VALUE x0 x1` with valid checksums, where VALUE is the current interval in ms
+(`08` on a keypad set to 125 Hz, `01` after setting 1000 Hz).
 
 ## Uploading a keymap ("Load to Synapse")
 
