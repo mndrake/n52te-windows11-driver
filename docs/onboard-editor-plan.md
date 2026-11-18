@@ -209,8 +209,22 @@ This Input's Macro* and *Type the Steps…* (the text dialog). The README shows 
 
 ### Phase 4 – Profiles
 
-17. Profile drop-down with New / Save / Save As / Import (v2.1.2 `.ini`) / Delete, stored in
-    `Documents\n52te\Profiles`; the keypad holds one profile at a time.
+17. ~~Profile drop-down with New / Save / Save As / Import (v2.1.2 `.ini`) / Delete, stored in
+    `Documents\n52te\Profiles`; the keypad holds one profile at a time.~~ Built on 18 Nov 2026,
+    not yet tried by a user:
+    * the **Current Profile** drop-down lists the saved profiles in Belkin's three columns
+      (Linked Application `-`, Auto-Switching `Off`); a green dot marks the profile last
+      written to the keypad;
+    * Belkin's prompts, drawn in its style (`SkinDialog.cs`): **SAVE CHANGES** "Do you want to
+      save your changes?" Yes / No / Cancel when leaving a changed profile, **Profile Save
+      Warning!** when an imported profile's name is taken (then Save as), the macro editor's
+      "Current Macro has unsaved changes. Continue?", and Apply Changes, Reset Keymap, Delete
+      and error messages in the same style;
+    * like Belkin: Import copies the file into the profiles folder under its profile name,
+      Delete opens the next profile in the list (or the factory profile), at most 100 profiles;
+    * after reading the keypad the editor looks for the saved profile whose three keymaps the
+      keypad holds and opens it (with the keypad's active keymap as its start keymap) instead
+      of an unnamed "Keypad" profile; without a keypad it opens the profile used last.
 
 ### Phase 5 – Installer and migration
 

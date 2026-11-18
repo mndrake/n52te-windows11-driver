@@ -25,7 +25,7 @@ Version 2 is in development: there is no release yet, so build the installer fir
 1. Open **n52te Editor**. It reads the keypad and shows its three keymaps: **Map 1** (Blue), **Map 2** (Red), **Map 3** (Green).
 2. Click an input's box (or the key on the picture) and choose what it does: a single key, a macro, a keymap switch, a mouse button or the wheel, a media key, *Reset Key to Default* or *Disable Button*. Keymap switches are written to all three keymaps, as in Belkin's editor.
 3. Click **Apply Changes**. The editor lists what will change, backs up each keymap it writes, writes it, checks it by reading it back, and switches the keypad to the keymap whose tab is showing. The keypad doesn't type for those few seconds.
-4. **Save** keeps the profile in `Documents\n52te\Profiles` (Belkin's `.ini` format); **Import** loads a Belkin profile.
+4. **Save** keeps the profile in `Documents\n52te\Profiles` (Belkin's `.ini` format); **Import** copies a Belkin profile there. Pick a profile from the **Current Profile** box at the bottom; a green dot marks the one last written to the keypad. When the editor starts and the keypad holds one of your saved profiles, it opens that profile.
 
 ### Macros
 

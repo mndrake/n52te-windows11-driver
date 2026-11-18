@@ -702,8 +702,8 @@ namespace N52te
         private bool ConfirmDiscard()
         {
             if (!modified || steps.Count == 0) return true;
-            DialogResult r = MessageBox.Show(this, "Save the changes to the macro '" + MacroName + "' first?", "Macro Editor", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-            return r == DialogResult.No || (r == DialogResult.Yes && SaveMacro(false));
+            // Belkin: "SAVE CHANGES  Current Macro has unsaved changes. Continue?  Ok  Cancel".
+            return SkinDialog.Ask(this, scale, "Save Changes", "Current Macro has unsaved changes. Continue?", "Ok", "Cancel") == 0;
         }
 
         private void NewMacro()
@@ -741,7 +741,7 @@ namespace N52te
             }
             catch (Exception e)
             {
-                MessageBox.Show(this, e.Message, "Open Macro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                SkinDialog.Tell(this, scale, "Open Macro", e.Message);
             }
         }
 
@@ -751,7 +751,7 @@ namespace N52te
             if (steps.Count == 0) { SetNote("nothing to save"); return false; }
             SavedMacro m = Current();
             if (SavedMacro.PressesMoreThanReleases(m.Sequence) &&
-                MessageBox.Show(this, "This macro presses more keys than it releases, so a key may stay held down after it plays. Save it anyway?", "Macro Editor", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
+                SkinDialog.Ask(this, scale, "Macro Warning", "This macro presses more keys than it releases, so a key may stay held down after it plays. Save it anyway?", "Save", "Cancel") != 0)
                 return false;
             if (asNew || path == null)
             {
@@ -760,7 +760,7 @@ namespace N52te
                     if (d.ShowDialog(this) != DialogResult.OK) return false;
                     string p = SavedMacro.PathFor(d.Value);
                     if (File.Exists(p) && !string.Equals(p, path, StringComparison.OrdinalIgnoreCase)
-                        && MessageBox.Show(this, "Replace the saved macro '" + d.Value + "'?", "Save Macro", MessageBoxButtons.OKCancel) != DialogResult.OK) return false;
+                        && SkinDialog.Ask(this, scale, "Save Macro", "A macro named '" + d.Value + "' already exists. Replace it?", "Replace", "Cancel") != 0) return false;
                     name = d.Value;
                     path = p;
                     m.Name = name;
@@ -775,7 +775,7 @@ namespace N52te
         private void DeleteMacro()
         {
             if (path == null || !File.Exists(path)) { SetNote("not saved"); return; }
-            if (MessageBox.Show(this, "Delete the saved macro '" + name + "'? Inputs it was assigned to keep their copy.", "Delete Macro", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
+            if (SkinDialog.Ask(this, scale, "Delete Macro", "Delete the saved macro '" + name + "'? Inputs it was assigned to keep their copy.", "Delete", "Cancel") != 0) return;
             File.Delete(path);
             path = null;
             modified = true;

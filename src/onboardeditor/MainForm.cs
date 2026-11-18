@@ -60,6 +60,7 @@ namespace N52te
                 else
                 {
                     connected = false;
+                    LoadLastProfile();
                     SetStatus(UsbDk.IsInstalled ? "n52te not connected" : "UsbDk is not installed");
                 }
             };
@@ -365,7 +366,7 @@ namespace N52te
                 sub.DropDownItems.Add(saved, null, (s, e) =>
                 {
                     try { AssignMacro(n, SavedMacro.Read(file)); }
-                    catch (Exception ex) { MessageBox.Show(this, ex.Message, "Macro", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                    catch (Exception ex) { Tell("Macro", ex.Message); }
                 });
             }
             if (sub.DropDownItems.Count > 0) sub.DropDownItems.Add(new ToolStripSeparator());
@@ -464,7 +465,7 @@ namespace N52te
         // get their factory macro in all three keymaps.
         private void ResetKeymap()
         {
-            if (MessageBox.Show(this, "Reset the " + KeypadLayout.KeymapNames[km] + " keymap to the factory layout?", "Reset Keymap", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            if (Ask("Reset Keymap", "Reset the " + KeypadLayout.KeymapNames[km] + " keymap to the factory layout?", "Ok", "Cancel") != 0) return;
             Profile f = Profile.Factory();
             for (int n = 1; n <= KeypadLayout.InputCount; n++)
             {
@@ -505,10 +506,10 @@ namespace N52te
             m.Items.Add(new ToolStripSeparator());
             m.Items.Add("Profiles Folder", null, (s, e) => System.Diagnostics.Process.Start(ProfileDir));
             m.Items.Add("Backups Folder", null, (s, e) => { Directory.CreateDirectory(KeypadSession.BackupDir); System.Diagnostics.Process.Start(KeypadSession.BackupDir); });
-            m.Items.Add("About", null, (s, e) => MessageBox.Show(this,
+            m.Items.Add("About", null, (s, e) => Tell("About n52te Editor",
                 "n52te Editor\n\nEdits the Belkin n52te's three onboard keymaps and writes them into the keypad, which runs them by itself.\n\n" +
                 "Layout after Belkin's n52te Editor v2.1.2. Belkin's artwork is only shown when you point the editor at your own copy of Belkin's software; it isn't part of this program.\n\n" +
-                "Talks to the keypad through UsbDk. Every write keeps a backup in Documents\\n52te keymaps.", "About n52te Editor"));
+                "Talks to the keypad through UsbDk. Every write keeps a backup in Documents\\n52te keymaps."));
             m.Items.Add("Close", null, (s, e) => Close());
             m.Show(this, at);
         }
@@ -520,7 +521,7 @@ namespace N52te
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 if (!Skin.IsBelkinSkin(d.SelectedPath))
                 {
-                    MessageBox.Show(this, "That folder doesn't contain Belkin's main window skin (main.ini, main_normal1_2.jpg).", "Belkin's artwork");
+                    Tell("Belkin's Artwork", "That folder doesn't contain Belkin's main window skin (main.ini, main_normal1_2.jpg).");
                     return;
                 }
                 settings.BelkinSkin = d.SelectedPath;
@@ -531,12 +532,19 @@ namespace N52te
 
         // ---- profiles ----
 
+        private const int MaxProfiles = 100; // as in Belkin's editor
+
+        private int Ask(string title, string message, params string[] buttons) { return SkinDialog.Ask(this, scale, title, message, buttons); }
+
+        private void Tell(string title, string message) { SkinDialog.Tell(this, scale, title, message); }
+
+        // Belkin's "SAVE CHANGES  Do you want to save your changes?  Yes  No  Cancel".
         private bool ConfirmDiscard()
         {
             if (!modified) return true;
-            DialogResult r = MessageBox.Show(this, "Save the changes to '" + profile.Name + "' first?", "n52te Editor", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-            if (r == DialogResult.Cancel) return false;
-            return r == DialogResult.No || SaveProfile(false);
+            int r = Ask("Save Changes", "Do you want to save your changes to '" + profile.Name + "'?", "Yes", "No", "Cancel");
+            if (r == 0) return SaveProfile(false);
+            return r == 1;
         }
 
         private void LoadProfile(Profile p, string path)
@@ -545,7 +553,24 @@ namespace N52te
             profilePath = path;
             modified = false;
             km = p.StartKeymap;
+            settings.LastProfile = path ?? "";
+            settings.Save();
             Invalidate();
+        }
+
+        private static List<string> SavedProfiles()
+        {
+            var list = new List<string>();
+            if (Directory.Exists(ProfileDir)) list.AddRange(Directory.GetFiles(ProfileDir, "*.ini"));
+            list.Sort(StringComparer.OrdinalIgnoreCase);
+            return list;
+        }
+
+        private bool RoomFor(string path)
+        {
+            if (File.Exists(path) || SavedProfiles().Count < MaxProfiles) return true;
+            Tell("Profiles", "There are already " + MaxProfiles + " profiles, the most the editor keeps. Delete one first.");
+            return false;
         }
 
         private string AskName(string title, string initial)
@@ -559,6 +584,7 @@ namespace N52te
             if (!ConfirmDiscard()) return;
             string name = AskName("New Profile", "New Profile");
             if (name == null) return;
+            if (!RoomFor(Path.Combine(ProfileDir, name + ".ini"))) return;
             Profile p = Profile.Factory();
             p.Name = name;
             LoadProfile(p, null);
@@ -573,17 +599,23 @@ namespace N52te
                 string name = AskName(asNew ? "Save As" : "Save Profile", profile.Name);
                 if (name == null) return false;
                 string path = Path.Combine(ProfileDir, name + ".ini");
+                if (!RoomFor(path)) return false;
                 if (File.Exists(path) && !string.Equals(path, profilePath, StringComparison.OrdinalIgnoreCase)
-                    && MessageBox.Show(this, "Replace the existing profile '" + name + "'?", "Save", MessageBoxButtons.OKCancel) != DialogResult.OK) return false;
+                    && Ask("Save Profile", "A profile named '" + name + "' already exists. Replace it?", "Replace", "Cancel") != 0) return false;
                 profile.Name = name;
                 profilePath = path;
             }
+            Directory.CreateDirectory(ProfileDir);
             ProfileIni.Write(profile, profilePath);
             modified = false;
+            settings.LastProfile = profilePath;
+            settings.Save();
             SetStatus("saved '" + profile.Name + "'");
             return true;
         }
 
+        // Like Belkin's Import: the file is copied into the profiles folder under its profile name;
+        // if that name is taken, "Profile Save Warning!" asks for a new one.
         private void ImportProfile()
         {
             if (!ConfirmDiscard()) return;
@@ -592,23 +624,40 @@ namespace N52te
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 Profile p = ReadIni(d.FileName);
                 if (p == null) return;
-                if (string.IsNullOrEmpty(p.Name)) p.Name = Path.GetFileNameWithoutExtension(d.FileName);
+                if (string.IsNullOrEmpty(p.Name) || !NameDialog.IsValidName(p.Name)) p.Name = Path.GetFileNameWithoutExtension(d.FileName);
                 string path = Path.Combine(ProfileDir, p.Name + ".ini");
-                if (File.Exists(path) && MessageBox.Show(this, "Replace the existing profile '" + p.Name + "'?", "Import", MessageBoxButtons.OKCancel) != DialogResult.OK) return;
+                while (File.Exists(path))
+                {
+                    if (Ask("Profile Save Warning!", "A profile with this file name already exists. A new name must be provided in order to continue importing this profile.", "Save as", "Cancel") != 0) return;
+                    string name = AskName("Save As", p.Name);
+                    if (name == null) return;
+                    p.Name = name;
+                    path = Path.Combine(ProfileDir, name + ".ini");
+                }
+                if (!RoomFor(path)) return;
+                Directory.CreateDirectory(ProfileDir);
                 ProfileIni.Write(p, path);
                 LoadProfile(p, path);
                 SetStatus("imported '" + p.Name + "'");
             }
         }
 
+        // Like Belkin's Delete: the next profile in the list (or the factory profile) takes its place.
         private void DeleteProfile()
         {
             if (profilePath == null || !File.Exists(profilePath)) { SetStatus("this profile isn't saved"); return; }
-            if (MessageBox.Show(this, "Delete the profile '" + profile.Name + "'? The keypad keeps whatever was written to it.", "Delete", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
-            File.Delete(profilePath);
-            profilePath = null;
-            modified = true;
-            SetStatus("deleted the profile file");
+            if (Ask("Delete Profile", "Delete the profile '" + profile.Name + "'? The keypad keeps whatever was last written to it.", "Delete", "Cancel") != 0) return;
+            string gone = profilePath;
+            List<string> before = SavedProfiles();
+            int index = before.FindIndex(p => string.Equals(p, gone, StringComparison.OrdinalIgnoreCase));
+            File.Delete(gone);
+            if (string.Equals(settings.OnKeypad, gone, StringComparison.OrdinalIgnoreCase)) settings.OnKeypad = "";
+            List<string> after = SavedProfiles();
+            string next = after.Count == 0 ? null : after[Math.Max(0, Math.Min(index, after.Count - 1))];
+            Profile loaded = next == null ? null : ReadIni(next);
+            if (loaded != null) LoadProfile(loaded, next);
+            else LoadProfile(Profile.Factory(), null);
+            SetStatus("deleted the profile");
         }
 
         private Profile ReadIni(string path)
@@ -617,34 +666,64 @@ namespace N52te
             {
                 var warnings = new List<string>();
                 Profile p = ProfileIni.Read(path, warnings);
-                if (warnings.Count > 0) MessageBox.Show(this, string.Join("\n", warnings.ToArray()), "Profile", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (warnings.Count > 0) Tell("Profile", string.Join("\n", warnings.ToArray()));
                 return p;
             }
             catch (Exception e)
             {
-                MessageBox.Show(this, e.Message, "Profile", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Tell("Profile", e.Message);
                 return null;
             }
         }
 
+        // The keypad's three keymaps are this profile's (start keymap aside).
+        private static bool SameKeymaps(Profile a, Profile b)
+        {
+            for (int k = 0; k < KeypadLayout.KeymapCount; k++)
+                if (KeymapImage.FirstDifference(KeymapImage.Build(a.Keymaps[k], k), KeymapImage.Build(b.Keymaps[k], k)) >= 0) return false;
+            return true;
+        }
+
+        // The saved profile whose keymaps the keypad holds, if any.
+        private string FindSavedProfile(Profile onKeypad, out Profile match)
+        {
+            match = null;
+            var candidates = SavedProfiles();
+            // The profile last written to the keypad is the likeliest; look at it first.
+            int last = candidates.FindIndex(p => string.Equals(p, settings.OnKeypad, StringComparison.OrdinalIgnoreCase));
+            if (last > 0) { string s = candidates[last]; candidates.RemoveAt(last); candidates.Insert(0, s); }
+            foreach (string path in candidates)
+            {
+                try
+                {
+                    Profile p = ProfileIni.Read(path, new List<string>());
+                    if (SameKeymaps(p, onKeypad)) { match = p; return path; }
+                }
+                catch (Exception) { }
+            }
+            return null;
+        }
+
         private void ShowProfileMenu()
         {
-            var m = new ContextMenuStrip();
-            foreach (string path in Directory.GetFiles(ProfileDir, "*.ini"))
+            var entries = new List<ProfileList.Entry>();
+            foreach (string path in SavedProfiles())
             {
                 string p = path;
-                var item = new ToolStripMenuItem(Path.GetFileNameWithoutExtension(p), null, (s, e) =>
-                {
-                    if (!ConfirmDiscard()) return;
-                    Profile loaded = ReadIni(p);
-                    if (loaded != null) LoadProfile(loaded, p);
-                }) { Checked = string.Equals(p, profilePath, StringComparison.OrdinalIgnoreCase) };
-                m.Items.Add(item);
+                entries.Add(new ProfileList.Entry(Path.GetFileNameWithoutExtension(p), string.Equals(p, settings.OnKeypad, StringComparison.OrdinalIgnoreCase),
+                    string.Equals(p, profilePath, StringComparison.OrdinalIgnoreCase), () =>
+                    {
+                        if (!ConfirmDiscard()) return;
+                        Profile loaded = ReadIni(p);
+                        if (loaded != null) LoadProfile(loaded, p);
+                    }));
             }
-            if (m.Items.Count > 0) m.Items.Add(new ToolStripSeparator());
-            m.Items.Add("What the keypad holds now (Read from Keypad)", null, (s, e) => ReadFromKeypad(true)).Enabled = !busy;
-            m.Items.Add("Factory Profile", null, (s, e) => { if (ConfirmDiscard()) { LoadProfile(Profile.Factory(), null); modified = true; } });
-            m.Show(this, new Point((int)(SkinLayout.Profile.X * scale), (int)(SkinLayout.Profile.Bottom * scale)));
+            entries.Add(null); // separator
+            if (!busy) entries.Add(new ProfileList.Entry("Read from Keypad (what it holds now)", false, false, () => ReadFromKeypad(true)));
+            entries.Add(new ProfileList.Entry("Factory Profile", false, false, () => { if (ConfirmDiscard()) { Profile f = Profile.Factory(); LoadProfile(f, null); modified = true; Invalidate(); } }));
+            Rectangle box = SkinLayout.Profile;
+            var list = new ProfileList(entries, scale);
+            list.Show(this, PointToScreen(new Point((int)(box.X * scale), (int)(box.Bottom * scale))), (int)(box.Width * scale));
         }
 
         private void OpenProfileFile()
@@ -719,15 +798,31 @@ namespace N52te
                 });
                 connected = true;
                 polling = rate;
-                LoadProfile(p, null);
-                SetStatus("read from the keypad");
-                if (warnings.Count > 0) MessageBox.Show(this, string.Join("\n", warnings.ToArray()), "Read from Keypad", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // If the keypad holds a saved profile, open that profile (its start keymap is the
+                // keypad's active keymap now).
+                Profile saved;
+                string path = FindSavedProfile(p, out saved);
+                if (path != null)
+                {
+                    saved.StartKeymap = p.StartKeymap;
+                    LoadProfile(saved, path);
+                    settings.OnKeypad = path;
+                    settings.Save();
+                    SetStatus("the keypad holds '" + saved.Name + "'");
+                }
+                else
+                {
+                    LoadProfile(p, null);
+                    SetStatus("read from the keypad");
+                }
+                if (warnings.Count > 0) Tell("Read from Keypad", string.Join("\n", warnings.ToArray()));
             }
             catch (Exception e)
             {
                 connected = UsbDkTransport_IsPresent();
                 SetStatus(connected ? "couldn't read the keypad" : "n52te not connected");
-                if (ask) MessageBox.Show(this, e.Message, "Read from Keypad", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (ask) Tell("Read from Keypad", e.Message);
+                else LoadLastProfile();
             }
         }
 
@@ -741,16 +836,14 @@ namespace N52te
                 List<string> diffs = KeypadSession.Differences(onKeypad, profile);
                 if (diffs.Count == 0) { SetStatus("the keypad already has this profile"); return; }
                 var sb = new StringBuilder();
-                sb.AppendLine("Write these changes to the keypad?").AppendLine();
-                for (int i = 0; i < diffs.Count && i < 20; i++) sb.AppendLine(diffs[i]);
-                if (diffs.Count > 20) sb.AppendLine("... and " + (diffs.Count - 20) + " more");
+                foreach (string d in diffs) sb.AppendLine(d);
                 if (issues.Count > 0)
                 {
                     sb.AppendLine().AppendLine("Please note:");
                     foreach (string i in issues) sb.AppendLine("- " + i);
                 }
-                sb.AppendLine().Append("The keypad doesn't type for the few seconds this takes. A backup of each changed keymap is kept in Documents\\n52te keymaps.");
-                if (MessageBox.Show(this, sb.ToString(), "Apply Changes", MessageBoxButtons.OKCancel, issues.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Question) != DialogResult.OK)
+                string question = diffs.Count + (diffs.Count == 1 ? " change" : " changes") + " to write to the keypad. It doesn't type for the few seconds this takes; each keymap that changes is backed up first.";
+                if (SkinDialog.AskWithDetail(this, scale, "Apply Changes", question, sb.ToString(), "Apply", "Cancel") != 0)
                 {
                     SetStatus("");
                     return;
@@ -760,16 +853,18 @@ namespace N52te
                 if (error != null)
                 {
                     SetStatus("writing failed");
-                    MessageBox.Show(this, error, "Apply Changes", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Tell("Apply Changes", error);
                     return;
                 }
                 connected = true;
+                settings.OnKeypad = profilePath ?? "";
+                settings.Save();
                 SetStatus("changes applied");
             }
             catch (Exception e)
             {
                 SetStatus("couldn't reach the keypad");
-                MessageBox.Show(this, e.Message, "Apply Changes", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Tell("Apply Changes", e.Message);
             }
         }
 
@@ -794,8 +889,16 @@ namespace N52te
             catch (Exception e)
             {
                 SetStatus("couldn't set the polling rate");
-                MessageBox.Show(this, e.Message, "Polling Rate", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Tell("Polling Rate", e.Message);
             }
+        }
+
+        // Without the keypad, open the profile used last (or the factory profile).
+        private void LoadLastProfile()
+        {
+            string last = settings.LastProfile;
+            Profile p = string.IsNullOrEmpty(last) || !File.Exists(last) ? null : ReadIni(last);
+            if (p != null) LoadProfile(p, last);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -807,12 +910,15 @@ namespace N52te
         }
     }
 
-    // %APPDATA%\n52te\editor.ini: where Belkin's skin is, window size.
+    // %APPDATA%\n52te\editor.ini: where Belkin's skin is, window size, the profile used last and
+    // the profile last written to the keypad.
     internal sealed class Settings
     {
         private static readonly string FilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "n52te", "editor.ini");
         public string BelkinSkin;
         public float Scale;
+        public string LastProfile = "";
+        public string OnKeypad = "";
 
         public static Settings Load()
         {
@@ -827,6 +933,8 @@ namespace N52te
                     string k = line.Substring(0, eq).Trim(), v = line.Substring(eq + 1).Trim();
                     if (k == "BelkinSkin") s.BelkinSkin = v;
                     else if (k == "Scale") float.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out s.Scale);
+                    else if (k == "LastProfile") s.LastProfile = v;
+                    else if (k == "OnKeypad") s.OnKeypad = v;
                 }
             }
             catch (IOException) { }
@@ -838,7 +946,8 @@ namespace N52te
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
-                File.WriteAllText(FilePath, "BelkinSkin=" + (BelkinSkin ?? "") + "\r\nScale=" + Scale.ToString(CultureInfo.InvariantCulture) + "\r\n");
+                File.WriteAllText(FilePath, "BelkinSkin=" + (BelkinSkin ?? "") + "\r\nScale=" + Scale.ToString(CultureInfo.InvariantCulture)
+                    + "\r\nLastProfile=" + (LastProfile ?? "") + "\r\nOnKeypad=" + (OnKeypad ?? "") + "\r\n");
             }
             catch (IOException) { }
         }
