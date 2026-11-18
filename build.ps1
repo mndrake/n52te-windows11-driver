@@ -8,9 +8,10 @@
      not as a compiled exe (compiled AutoHotkey programs trip antivirus heuristics).
   2. Compiles src\remapper\Program.cs (n52te_interception.exe) with the
      .NET Framework 4.x C# compiler that ships with Windows.
-  3. Compiles src\configtool\N52teConfig.cs (n52te-config.exe), the command-line tool that
-     reads, switches and writes the keypad's onboard keymaps. It needs UsbDk at run time,
-     which the installer does not bundle.
+  3. Compiles src\core\*.cs and src\configtool\*.cs (n52te-config.exe), the command-line tool
+     that reads, switches and writes the keypad's onboard keymaps, and runs its self-test
+     (n52te-config selftest; uses Belkin's Default.ini too if N52TE_BELKIN_DEFAULT_INI points
+     at it). It needs UsbDk at run time, which the installer does not bundle.
   4. Compiles src\installer\Installer.cs, embedding the editor script, AutoHotkey64.exe
      and its license, the remapper, n52te-config and the files in src\installer\resources.
   5. Writes the installer's SHA-256 next to it.
@@ -70,7 +71,10 @@ Invoke-Csc @('/target:exe', "/out:$remapperExe", '/r:System.dll', '/r:System.Cor
 # 3. Keymap tool (console app)
 Write-Host '== n52te-config.exe'
 $configExe = Join-Path $obj 'n52te-config.exe'
-Invoke-Csc @('/target:exe', "/out:$configExe", '/r:System.dll', '/r:System.Core.dll', (Join-Path $src 'configtool\N52teConfig.cs'))
+$configSources = @(Get-ChildItem (Join-Path $src 'core'), (Join-Path $src 'configtool') -Filter *.cs | ForEach-Object FullName)
+Invoke-Csc (@('/target:exe', '/warnaserror+', "/out:$configExe", '/r:System.dll', '/r:System.Core.dll') + $configSources)
+& $configExe selftest | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "n52te-config selftest failed (exit code $LASTEXITCODE)" }
 
 # 4. Installer (WinForms app with embedded payload)
 Write-Host "== $InstallerName"

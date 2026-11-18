@@ -128,17 +128,40 @@ keypad at least once.
 
 ### Phase 1 – Core library
 
-6. Split `src/configtool/N52teConfig.cs` into `src/core/`:
-   * `Transport` (`IKeypadTransport`, UsbDk implementation, borrow/return the keypad);
-   * `KeymapImage` (slot table, header, codes, option bytes, macro encode/decode, checksum);
-   * `Profile` (name, start keymap, 3 × 27 inputs, macros) and `ProfileIni` (v2.1.2 `.ini`
-     read/write);
-   * `Codes` (firmware code table and names; VK → firmware key code).
-7. **Self-tests** (a `selftest` command): the factory `Default.ini` and the backups from
-   2026-11-16 must convert to images and back byte-identically.
-8. `n52te-config` becomes a thin front end, with new commands: `apply PROFILE.ini` (all three
-   keymaps + start keymap), `export PROFILE.ini` (read the keypad into a profile), `macro`,
-   `polling`.
+Done on 18 Nov 2026 (steps 6–8). The library is plain C# 5 so the in-box `csc` builds it; the
+editor will compile the same files.
+
+6. ~~Split `src/configtool/N52teConfig.cs` into `src/core/`.~~ Done:
+   * `Transport.cs`: `IKeypadTransport`, the UsbDk implementation (borrow/return the keypad,
+     `listen`);
+   * `KeypadClient.cs`: the configuration commands (read/write/verify a keymap, select keymap,
+     polling rate, descriptor), with the guard that refuses command 7;
+   * `KeymapImage.cs`: slot table, upload header, option bytes +1, macro fold/unfold, checksum,
+     decoding for display;
+   * `Profile.cs`: input records, profile (name, start keymap, 3 × 27 inputs), Belkin's factory
+     profile, checks (switches not in all three keymaps, invalid macro modes, PC-side actions,
+     commands), macro steps as text (`"A 1000ms B"`, `"+LShift H -LShift"`);
+   * `ProfileIni.cs`: v2.1.2 `.ini` read/write, including the trailing checksum byte;
+   * `FirmwareCodes.cs`: code names (pointer directions as the keypad really moves), name ↔
+     code, VK → firmware code.
+   Ported from the cloud branch with its bug fixed: its image builder wrote inputs in input order
+   instead of slot order.
+7. ~~**Self-tests**~~: `n52te-config selftest [Default.ini]`, also run by `build.ps1`. Passes:
+   the built-in factory profile is byte-identical with Belkin's `Default.ini` (checksum `9A`),
+   and the file written back is identical to it; all 28 saved keypad images (backups and test
+   images from 16–18 Nov) convert to records and back byte-identically, and through a `.ini`;
+   the macro "A 1000ms B" encodes to the bytes verified on hardware; a simulated keypad checks
+   the write/verify path and that command 7 never leaves the program.
+8. ~~`n52te-config` becomes a thin front end.~~ New commands: `export FILE.ini` (the keypad's
+   three keymaps and active keymap as a Belkin profile), `apply FILE.ini --yes` (writes only
+   the keymaps that differ, then selects the start keymap; `--dry-run` lists the changes),
+   `macro KM INPUT "STEPS" [--mode …] --yes`, `show FILE` (decode a `.bin` or `.ini` offline),
+   `selftest`. Checked on the keypad read-only: `read all` matches earlier reads byte for byte,
+   `export` + `apply --dry-run` finds all three keymaps unchanged, and `apply Default.ini
+   --dry-run` lists exactly the factory layout's differences. Writes, with Memory Integrity on:
+   `macro red 1 "A 1000ms B"` typed `a`, a pause, `b` from the keypad; `apply` of the exported
+   profile then wrote only Red back (Blue and Green skipped as unchanged), selected Blue, and
+   left Red byte-identical with its original.
 
 ### Phase 2 – Editor main window
 

@@ -64,8 +64,13 @@ installer puts `n52te-config.exe` in `C:\Program Files\n52te` and adds a Start-m
 bundle UsbDk; it logs whether UsbDk is installed. `build.ps1` compiles the tool; on its own:
 
 ```
-csc /platform:x64 /out:n52te-config.exe src\configtool\N52teConfig.cs
+csc /platform:x64 /r:System.dll /r:System.Core.dll /out:n52te-config.exe src\core\*.cs src\configtool\*.cs
+n52te-config selftest [path\to\Belkin\User_Profiles\Default.ini]
 ```
+
+The keypad code lives in `src\core` (transport, protocol, keymap image, profile, `.ini` files,
+code tables), shared with the editor to come; `src\configtool` is the command-line front end and
+the self-test.
 
 | Command | What it does |
 |---|---|
@@ -78,6 +83,11 @@ csc /platform:x64 /out:n52te-config.exe src\configtool\N52teConfig.cs
 | `n52te-config polling [125\|500\|1000]` | set the keyboard side's USB polling rate (kept after unplugging, effective after replugging); without a rate, only shows the current one |
 | `n52te-config descriptor` | show the USB poll interval of each endpoint (read-only) |
 | `n52te-config listen [SECONDS]` | print the keypad's raw key and mouse reports (diagnostic; the keypad types nothing meanwhile) |
+| `n52te-config export FILE.ini [NAME]` | save the three keymaps and the active keymap as a Belkin v2.1.2 profile (read-only) |
+| `n52te-config apply FILE.ini --yes` | write a Belkin profile: only the keymaps that differ, then select its start keymap; `--dry-run` lists the changes and writes nothing |
+| `n52te-config macro KM INPUT "STEPS" [--mode once\|held\|untilnext] [--times N] [--interval MS] --yes` | put a macro on one input; steps like `"H I"`, `"+LShift A -LShift"`, `"A 1000ms B"`, `"Mouse_Left"` |
+| `n52te-config show FILE` | decode a keymap image (`.bin`) or a profile (`.ini`) without the keypad |
+| `n52te-config selftest [DEFAULT.INI]` | check the tool against known data and a simulated keypad, without the keypad |
 
 The tool refuses command 7 (`ENTER_ICP`, firmware update) whatever it is asked to do.
 
