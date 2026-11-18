@@ -28,8 +28,9 @@ this project, and how to fix them. The pages here are the detailed reference beh
 * **Verified on hardware** (November 2026): the configuration protocol, read-back and upload
   ([03](03-usb-protocol.md#verified-on-hardware-november-2026)), and the mouse, media, command
   and keymap-switch codes ([04](04-onboard-profile-and-codes.md#verified-on-hardware-17-nov-2026)).
-  Macros and the macro options have not been tested on the keypad yet. Nothing was captured on
-  the USB bus from the original software.
+  Macros and their option bytes followed on 18 Nov
+  ([04](04-onboard-profile-and-codes.md#macros-18-nov-2026)). Nothing was captured on the USB bus
+  from the original software.
 
 ## How it was done
 

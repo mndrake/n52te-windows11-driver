@@ -360,7 +360,9 @@ Other main buttons for reference: `+0x411f40` New (`0x442fad`), `+0x41201c` Save
   `0x4FA 0x20`) are PC-side only.
 
 ## Not resolved
-* Firmware semantics of p1 = 1/2/3 after the +1 (names come from the UI; behaviour on the keypad
-  not tested). Whether "Run Times" also waits `p3` between runs.
+* ~~Firmware semantics of p1 = 1/2/3 after the +1; whether "Run Times" also waits `p3` between
+  runs.~~ Tested on 18 Nov 2026 ([04](04-onboard-profile-and-codes.md#macros-18-nov-2026)): the
+  three modes behave as the editor's labels say, the run count works, `p3` slows "Repeat while
+  pressed" but Run Times ignores it, and a raw p1 of 0 disables the macro.
 * Purpose of the 10-s timer 2 after a polling change; service message `0x508`.
 * Owner dialog of the second recorder `0x434a96`.

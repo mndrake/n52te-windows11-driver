@@ -21,9 +21,9 @@ the stored profile leaves silent, and can't change the keypad's keymap or LED (s
 | Keymap numbers 0 = Blue, 1 = Red | hardware; 2 = Green inferred | [03](reverse-engineering/03-usb-protocol.md#verified-on-hardware-november-2026) |
 | Upload (`SEND_SETTING` + `GET_RESULT`), unchanged keymap | works on hardware (round trip) | `research/n52te_upload.py --roundtrip` |
 | Upload of a changed keymap (one key code) | works on hardware, keypad runs it with no PC software | `research/n52te_upload.py --set` |
-| Upload of macros, mouse codes, keymap-switch codes | not yet tested | – |
+| Upload of macros, mouse codes, keymap-switch codes | works on hardware (17–18 Nov 2026) | [04](reverse-engineering/04-onboard-profile-and-codes.md#verified-on-hardware-17-nov-2026) |
 | Windows 11 transport (UsbDk, no VM): info, read, round-trip write, select keymap | works on hardware (Memory Integrity off) | `src/configtool/N52teConfig.cs` (`n52te-config.exe`) |
-| UsbDk with Memory Integrity **on** | works on hardware (18 Nov 2026): `info` and `read all` as a normal user, no admin; Windows Security doesn't list `UsbDk.sys` as incompatible | `n52te-config.exe` |
+| UsbDk with Memory Integrity **on** | works on hardware (18 Nov 2026): `info`, `read all`, `write` and `select` as a normal user, no admin; Windows Security doesn't list `UsbDk.sys` as incompatible | `n52te-config.exe` |
 
 ## Components
 
@@ -105,8 +105,11 @@ and the Bluetooth keyboard stopped reaching apps until a reboot. Using the tool 
    [04](reverse-engineering/04-onboard-profile-and-codes.md#verified-on-hardware-17-nov-2026).
    Mouse, media and keymap-switch codes work from the firmware; the commands (`C0`–`CE`) send
    nothing.
-6. Not yet: macros and their option bytes, the polling rate, and a write with Memory Integrity
-   on. The first macro attempt (17 Nov) was void: from about 17:30 nothing from the keypad reached
+6. ~~Macros, their option bytes, and writing with Memory Integrity on.~~ Done on 18 Nov 2026:
+   three verified writes to Red with Memory Integrity on (two macro tests and the restore);
+   results in [04](reverse-engineering/04-onboard-profile-and-codes.md#macros-18-nov-2026).
+7. Not yet: the polling rate, mouse steps inside a macro, the remaining media codes. The first
+   macro attempt (17 Nov) was void: from about 17:30 nothing from the keypad reached
    Windows, not even a plain key in the untouched Blue keymap, although a raw capture over UsbDk
    showed the keypad sending the Blue layout correctly. The cause wasn't found. One more fault
    happened on the way: an early version of `n52te-config listen` left the keypad redirected to

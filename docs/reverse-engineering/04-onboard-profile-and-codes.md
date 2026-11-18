@@ -46,7 +46,7 @@ Each input is a 0x104-byte record. Keymap *k* input *n* (1-based) starts at
 |---|---|---|
 | `+0x000` | 1 | **code**: what the input does (below) |
 | `+0x001` | 256 | **seq**: 128 × `(code, flags)` steps. `flags` bit 0: 1 = press, 0 = release. A step with code `0xFF` is a delay, in the editor copy only |
-| `+0x101` | 3 | option bytes p1, p2, p3 (factory `01 01 00`): macro playback mode, run count and repeat interval, from the editor code ([07](07-n52tecfg-macros-and-options.md#1-macro-behaviour-options--p1-p2-p3)); firmware behaviour not yet tested |
+| `+0x101` | 3 | option bytes p1, p2, p3 (factory `01 01 00`): macro playback mode, run count and repeat interval ([07](07-n52tecfg-macros-and-options.md#1-macro-behaviour-options--p1-p2-p3)); uploaded +1, behaviour tested on the keypad ([below](#macros-18-nov-2026)) |
 
 How the `code` byte is interpreted:
 
@@ -227,6 +227,36 @@ switched to Blue, where the same button is a middle click, and the keypad then f
 Red and Blue at about the polling rate, sending hundreds of middle clicks. A switch input must
 have the same switch code in every keymap, as the original editor writes it.
 
-**Not tested yet:** macros (a first attempt was void: during it nothing from the keypad reached
-Windows at all, a PC-side fault, see [profile-tool-design.md](../profile-tool-design.md)), the
-macro options p1–p3, the other commands and media codes, and the polling rate.
+**Not tested yet:** the other commands and media codes, and the polling rate. (A first macro
+attempt on 17 Nov was void: nothing from the keypad reached Windows at the time, a PC-side fault,
+see [profile-tool-design.md](../profile-tool-design.md). Macros were tested again on 18 Nov,
+below.)
+
+### Macros (18 Nov 2026)
+
+Written with `n52te-config write` to keymap 1 (Red), keys 01–06, with Memory Integrity **on**;
+Red was restored from its backup afterwards. The macro was `35 01 35 00 3A 01 3A 00` ("hi": H
+down, H up, I down, I up) in the input's slot, with the input's code set to its macro marker.
+Option bytes are the raw values in the image (offsets `0x23`/`0x3E`/`0x59`), which are the
+editor's p1–p3 **+ 1** ([07](07-n52tecfg-macros-and-options.md#1-macro-behaviour-options--p1-p2-p3)).
+
+| Raw option bytes | Editor meaning | On the keypad |
+|---|---|---|
+| `01 01 00`, `01 01 01` | Run Times, 1 time | plays once per press; holding doesn't repeat |
+| `01 03 01` | Run Times, 3 times | `hihihi` per press |
+| `01 0A 05` | Run Times, 10 times, interval 250 ms | `hi` × 10, all at once: **the interval doesn't apply to Run Times** |
+| `02 02 01` | Repeat while pressed, 50 ms | one `hi` on a tap; held about 2 s: `hi` × 21 |
+| `02 01 01` | Repeat while pressed, 50 ms | held about 2 s: `hi` × 36 |
+| `02 01 05` | Repeat while pressed, 250 ms | held about 2 s: `hi` × 4, so the interval slows the repeat (exact timing not measured) |
+| `03 01 01` | Repeat until next key is pressed | repeats until another keypad key is pressed (`hi` × 84, then that key's `h`) |
+| `00 00 00` | – | **nothing**: a raw p1 of 0 disables the macro |
+
+Also verified: a delay inside a macro. `14 01 14 28 2F 01 2F 00` typed `a`, paused about one
+second, then typed `b`: the release of A carries flags `0x28` = delay 20 × 50 ms (bits 1–7) after
+the step, as described in [03](03-usb-protocol.md). The keypad stored and returned every byte of
+these macros unchanged.
+
+So, for a new tool: write option bytes as editor value + 1 (mode 1–3, count 1–10, interval
+1–5), and never leave p1 at 0 on a macro input. The `01 01 00` stored on every input of the test
+keypad is "Run Times, once" for macros and is ignored by plain keys. Mouse-button steps inside a
+macro (`D0`–`D2`) are not tested yet.

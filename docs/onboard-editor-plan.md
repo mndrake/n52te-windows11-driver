@@ -94,23 +94,25 @@ question (are there feature reports?) is already answered.
 
 1. ~~**UsbDk with Memory Integrity on.**~~ Done on 18 Nov 2026: `n52te-config info` and
    `read all` work with Memory Integrity on, without admin rights
-   ([profile-tool-design.md](profile-tool-design.md#test-plan)). UsbDk stays the transport; a
-   write with Memory Integrity on is still to be checked in step 2.
+   ([profile-tool-design.md](profile-tool-design.md#test-plan)), and so do `write` and `select`
+   (the macro tests in step 4). UsbDk stays the transport.
 2. **Hardware test matrix.** Mostly done on 17 Nov 2026
    ([04](reverse-engineering/04-onboard-profile-and-codes.md#verified-on-hardware-17-nov-2026)):
    keymap 2 is Green; mouse codes `D0`–`D8` and keymap switches `D9`–`DF` work from the firmware
    and the LED follows; the media codes tried work; the commands tried (`C0`–`C3`, `C5`, `C9`,
-   `CB`) send **nothing**. Still to do: the remaining media codes, Reset to default, and one write
-   with Memory Integrity on.
+   `CB`) send **nothing**. Still to do: the remaining media codes and Reset to default.
 3. ~~**Finish reverse-engineering `n52teCfg.exe`.**~~ Done on 17 Nov 2026
    ([07](reverse-engineering/07-n52tecfg-macros-and-options.md)): p1 = mode (Run Times / Repeat
    while pressed / Repeat until next key), p2 = run count, p3 = interval; "Ignore delays" never
    reaches the keypad; the size warning was never implemented (the real limit is 128 steps per
    macro); the recorder's VK → code table; Reset Keymap, Import, polling rate, and the profile
    file's trailing checksum byte.
-4. **Macro upload test:** add a `macro` command to `n52te-config` (from a small text file of
-   steps), write a short macro with a delay, check it plays from the keypad, test each behaviour
-   option, restore.
+4. ~~**Macro upload test.**~~ Done on 18 Nov 2026 with hand-built images and `n52te-config
+   write` ([04](reverse-engineering/04-onboard-profile-and-codes.md#macros-18-nov-2026)): macros
+   with several keys and a delay play from the keypad; Run Times (with its count), Repeat while
+   pressed (with its interval) and Repeat until next key all work; option bytes are the editor's
+   values + 1, and a raw p1 of 0 disables the macro. Still to do: mouse-button steps inside a
+   macro. A `macro` command for `n52te-config` comes with the core library (Phase 1).
 5. **Polling rate and command 8:** test `SET_POLLINGRATE` (cmd 9) and see whether command 8
    changes anything.
 
