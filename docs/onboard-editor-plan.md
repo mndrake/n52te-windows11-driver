@@ -92,10 +92,10 @@ question (are there feature reports?) is already answered.
 
 ### Phase 0 – Close the unknowns (before any UI work)
 
-1. **UsbDk with Memory Integrity on.** Turn Memory Integrity on (you, in Windows Security),
-   restart, run `n52te-config info` and `read all`. If UsbDk is blocked, prototype the fallback
-   (temporarily binding WinUSB to the keypad) before going further; the rest of the plan sits on
-   top of one `IKeypadTransport` interface either way.
+1. ~~**UsbDk with Memory Integrity on.**~~ Done on 18 Nov 2026: `n52te-config info` and
+   `read all` work with Memory Integrity on, without admin rights
+   ([profile-tool-design.md](profile-tool-design.md#test-plan)). UsbDk stays the transport; a
+   write with Memory Integrity on is still to be checked in step 2.
 2. **Hardware test matrix** with `n52te-config set` (each change backed up and restored):
    * select keymap 2, confirm the LED is green;
    * mouse codes `D0`–`D8` (left / right / middle, scroll down / up, axis moves);
@@ -174,7 +174,8 @@ keypad at least once.
 
 ## Risks
 
-* **UsbDk under Memory Integrity** (Phase 0 step 1) decides the transport.
+* ~~**UsbDk under Memory Integrity**~~: works (Phase 0 step 1). Users who want Memory Integrity
+  on must remove Interception first; the installer's migration step (Phase 5) does that.
 * **UsbDk's USB class filter entry** (see Safety rules): a broken install or a hand-deleted
   driver can take all USB input down. The installer only ever runs UsbDk's own MSI.
 * **Unverified codes or macro options** could behave differently from the editor's labels; Phase

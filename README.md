@@ -45,7 +45,7 @@ The **Belkin n52te** (and its twin, the **Razer Nostromo n52te**) is a legendary
 
 ## ✨ What's included
 
-- **🎮 True per-device separation**: only the n52te's keys are remapped. Your normal keyboard keeps typing normally — no lag, no interference. (Built on the [Interception](https://github.com/oblitum/Interception) driver, compatible with Windows 11 Memory Integrity — **no need to disable any security feature**.)
+- **🎮 True per-device separation**: only the n52te's keys are remapped. Your normal keyboard keeps typing normally — no lag, no interference. (Built on the [Interception](https://github.com/oblitum/Interception) driver. Its driver files `keyboard.sys` / `mouse.sys` aren't compatible with Windows 11 Memory Integrity: on the test PC, Memory Integrity could only be turned on after removing them.)
 - **🖱️ Visual editor**: the 14 buttons + thumb pad + D-pad + scroll wheel (up, click, down) drawn with the device's real shape. Click a button, choose what it does, save — applied instantly.
 - **⌨️ Each button can be**: a key (including F13–F24, which conflict with nothing), a combo/macro (`Ctrl+C`, `Alt+Tab`…), typed text, launching a program or website, or a keymap switch.
 - **🎨 Blue / Green / Red keymaps**: like the original Belkin software, every button can do something different in each of three keymaps. Give any button the **Switch keymap** action: cycle through all three, or jump to one color (toggle, or only while held). These keymaps live in the remapper, not in the keypad, so the keypad's light doesn't follow them: the active one is shown in the editor and in the remapper window's title.
@@ -83,7 +83,7 @@ n52te-config set blue 18 2F --yes   set input 18 (wheel down) of Blue to code 2F
 n52te-config write FILE blue --yes  write a saved keymap image, e.g. a backup
 ```
 
-Every write saves a backup of the keymap first, in `Documents\n52te keymaps`. The keypad doesn't type while the tool runs (a few seconds). Input numbers and codes are in [docs/reverse-engineering/04](docs/reverse-engineering/04-onboard-profile-and-codes.md); single keys have been tested on hardware, macros, mouse and keymap-switch codes not yet. The tool works with Memory Integrity off; with it on it hasn't been tested yet. Details: [docs/profile-tool-design.md](docs/profile-tool-design.md).
+Every write saves a backup of the keymap first, in `Documents\n52te keymaps`. The keypad doesn't type while the tool runs (a few seconds). Input numbers and codes are in [docs/reverse-engineering/04](docs/reverse-engineering/04-onboard-profile-and-codes.md); single keys have been tested on hardware, macros, mouse and keymap-switch codes not yet. The tool works with Memory Integrity off and on (with it on, reading has been tested; writing not yet). Details: [docs/profile-tool-design.md](docs/profile-tool-design.md).
 
 ## 🧩 Compatibility
 
@@ -96,7 +96,7 @@ Every write saves a backup of the keymap first, in `Documents\n52te keymaps`. Th
 
 ## 🛠️ How it works (technical)
 
-- The n52te enumerates as a standard HID keyboard. To remap **only** its keys without touching your physical keyboard, input must be filtered at driver level: this project uses the **Interception** kernel driver (signed, HVCI-compatible).
+- The n52te enumerates as a standard HID keyboard. To remap **only** its keys without touching your physical keyboard, input must be filtered at driver level: this project uses the **Interception** kernel driver (signed, but not compatible with Memory Integrity / HVCI).
 - A small background service (`n52te_interception.exe`) reads every keystroke, checks whether it comes from the n52te (`VID_050D`) and, if so, emits the configured action; any other keyboard passes through untouched.
 - The scroll wheel (up, click, down) arrives from the n52te's separate mouse interface. The remapper filters only that interface, and only its wheel and middle-button events, so your own mouse and all mouse movement are never captured. Wheel notches without an assignment scroll normally.
 - The editor (`n52te Editor.ahk`, run by `AutoHotkey64.exe`) writes the configuration to `%ProgramData%\n52te\n52te_config.ini`, which the remapper hot-reloads automatically (~1 second). The Blue keymap is the `[Botones]` section, Green and Red are `[Botones.Green]` and `[Botones.Red]` (the original software's order); a keymap switch is stored as `keymap|cycle`, `keymap|red` or `keymap|red hold`. Configs from earlier (Spanish) versions keep working unchanged and load as the Blue keymap.

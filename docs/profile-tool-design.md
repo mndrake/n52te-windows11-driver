@@ -23,7 +23,7 @@ the stored profile leaves silent, and can't change the keypad's keymap or LED (s
 | Upload of a changed keymap (one key code) | works on hardware, keypad runs it with no PC software | `research/n52te_upload.py --set` |
 | Upload of macros, mouse codes, keymap-switch codes | not yet tested | – |
 | Windows 11 transport (UsbDk, no VM): info, read, round-trip write, select keymap | works on hardware (Memory Integrity off) | `src/configtool/N52teConfig.cs` (`n52te-config.exe`) |
-| UsbDk with Memory Integrity **on** | not yet tested | – |
+| UsbDk with Memory Integrity **on** | works on hardware (18 Nov 2026): `info` and `read all` as a normal user, no admin; Windows Security doesn't list `UsbDk.sys` as incompatible | `n52te-config.exe` |
 
 ## Components
 
@@ -45,12 +45,12 @@ the stored profile leaves silent, and can't change the keypad's keymap or LED (s
    | Transport | Works with Memory Integrity on? | Trade-offs |
    |---|---|---|
    | Linux / VM (pyusb) | n/a | works today; needs a VM with USB passthrough |
-   | UsbDk (signed, open source, last release 2020) | unknown, to test | borrows the keypad for a few seconds, no driver swap; third-party kernel driver |
+   | UsbDk (signed, open source, last release 2020) | yes (tested: read-only commands) | borrows the keypad for a few seconds, no driver swap; third-party kernel driver, registered as a filter on the whole USB class |
    | WinUSB bound temporarily | yes (Microsoft's own driver) | needs a driver package signed by a certificate the user trusts locally; the keypad stops typing until the HID driver is restored |
    | New kernel filter like `JmtFltr` | only with Microsoft attestation signing | needs an EV code-signing certificate; not practical for this project |
 
-   Plan: prototype on UsbDk (this PC has Memory Integrity off), test it on a machine with it
-   on, and fall back to temporary WinUSB if needed. Keep the transport behind one small
+   Plan: UsbDk, which now works with Memory Integrity both off and on; temporary WinUSB stays
+   the fallback. Keep the transport behind one small
    interface (`ControlIn`, `ControlOut`) so the VM path stays available for testing.
 5. **Editor.** Edit Blue/Red/Green as the keypad's real keymaps, with "Read from keypad" and
    "Write to keypad". A keymap-switch action is written to all three keymaps, like the original
@@ -95,7 +95,12 @@ and the Bluetooth keyboard stopped reaching apps until a reboot. Using the tool 
 3. ~~Same steps through the Windows transport.~~ Done with `n52te-config` over UsbDk: `info`,
    `read all` (identical to the VM read-back), `roundtrip blue` (verified) and `select red` /
    `select blue` (LED followed).
-4. Not yet: writing macros, mouse codes and keymap-switch codes; UsbDk with Memory Integrity on.
+4. ~~UsbDk with Memory Integrity on.~~ Done on 18 Nov 2026: `info` and `read all` work as a
+   normal user; Blue read back identical to the 16 Nov image. To turn Memory Integrity on, the
+   test PC first needed Interception's `keyboard.sys` / `mouse.sys` (each has a writable and
+   executable `INIT` section) and some unrelated old Razer, Epson and Logitech drivers removed;
+   the incompatible-driver list only refreshed after a restart.
+5. Not yet: writing macros, mouse codes and keymap-switch codes; a write with Memory Integrity on.
 
 ## Open questions
 

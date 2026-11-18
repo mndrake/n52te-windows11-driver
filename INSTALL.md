@@ -79,7 +79,9 @@ Just run the new installer. It keeps your existing button configuration, replace
 
 ## ❓ Do I need to turn off Memory Integrity?
 
-**No.** The Interception driver this project uses is compatible with Windows 11 Memory Integrity (HVCI), unlike the original 2008 Belkin driver. You don't have to turn off any protection.
+**It has to be off for the remapper.** The Interception driver it uses (`keyboard.sys` / `mouse.sys`) isn't compatible with Windows 11 Memory Integrity (HVCI): each file has a section that is both writable and executable, which Memory Integrity refuses. On the test PC, Windows only let Memory Integrity be turned on after those drivers were removed.
+
+`n52te-config` (the keypad's own keymaps) doesn't need Interception, and works with Memory Integrity on.
 
 ---
 
